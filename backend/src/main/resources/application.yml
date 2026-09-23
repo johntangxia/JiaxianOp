@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: jiaxian-analytics
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: jiaxian_app
+    password: "Jiaxian@2026"
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always
+
+server:
+  port: 8080
