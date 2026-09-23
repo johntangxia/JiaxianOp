@@ -108,6 +108,7 @@ JiaxianOp/
    GRANT ALL PRIVILEGES ON SCHEMA public TO jiaxian_app;
    ```
    已验证 `jiaxian_app` 可以远程连接并建表。**这个授权是一次性手工操作，不在任何迁移脚本里**——如果之后有人删掉 `opengauss-data` 这个 docker volume 重新初始化，需要在 Task 1 验证步骤之后、Task 2 开始前，重新手工执行这三行 SQL（用 `-U opengauss` 登录后执行）。后续所有任务里，Spring Boot `application.yml` 的数据源账号统一使用 `jiaxian_app`，不用 `opengauss`（超级用户只用于人工排查，不用于应用连接）。
+4. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
 
 ---
 
