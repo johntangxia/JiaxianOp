@@ -1367,13 +1367,24 @@ package com.jiaxian.analytics.repository;
 
 import com.jiaxian.analytics.domain.PointsWeightConfig;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
 public interface PointsWeightConfigRepository extends JpaRepository<PointsWeightConfig, Long> {
-    Optional<PointsWeightConfig> findFirstByActionTypeOrderByEffectiveDateDesc(String actionType);
+
+    // Spring Data's derived "findFirstBy...OrderBy..." query paginates via a bind-parameterized
+    // "FETCH FIRST ? ROWS ONLY" clause, which OpenGauss's parser rejects with a syntax error
+    // ("syntax error at or near "$2"") — it only accepts a literal row count there, not a bind
+    // parameter. Using a native query with a hardcoded "LIMIT 1" avoids that clause entirely.
+    @Query(value = "SELECT * FROM points_weight_config WHERE action_type = :actionType "
+        + "ORDER BY effective_date DESC LIMIT 1", nativeQuery = true)
+    Optional<PointsWeightConfig> findFirstByActionTypeOrderByEffectiveDateDesc(@Param("actionType") String actionType);
 }
 ```
+
+**修正（Task 13 执行时发现）**：上面这个 `findFirstByActionTypeOrderByEffectiveDateDesc` 最初是 Spring Data 派生查询（方法名自动推导 SQL），在 Task 6 用 Mockito 做单元测试时没暴露问题——因为 mock 根本不会真的生成/执行 SQL。到 Task 13 第一次用真实 OpenGauss 跑集成测试时才报错：`ERROR: syntax error at or near "$2"`。根因是 Spring Data 派生查询的分页固定用 `FETCH FIRST ? ROWS ONLY`（问号是绑定参数），而这个 OpenGauss 版本的 SQL 解析器只接受这个位置写字面量（`FETCH FIRST 1 ROWS ONLY` 或 `LIMIT 1`），不接受绑定参数。改成原生 SQL（`@Query(nativeQuery = true)`）、把行数写死成字面量 `LIMIT 1` 解决，方法名/签名不变，调用方（Task 10-12 的生成器代码）不需要改。**以后任何 Spring Data 派生查询只要涉及"取第一条/前N条"（`findFirst...`、`findTop...`、`Pageable` 分页）都要留意这个坑**——纯 Mockito 单元测试测不出来，必须有真实数据库的集成测试才能发现，这也是这份计划坚持给关键组件配真实 OpenGauss 集成测试、而不是全用 mock 的原因之一。
 
 ```java
 package com.jiaxian.analytics.repository;
