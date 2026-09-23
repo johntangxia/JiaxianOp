@@ -15,6 +15,7 @@ public class BehaviorEventGenerator {
     private final ContentAuthorRepository contentAuthorRepository;
     private final PointsWeightConfigRepository pointsWeightConfigRepository;
     private final PointsLedgerRepository pointsLedgerRepository;
+    private final CommentRepository commentRepository;
     private final Random random;
 
     public BehaviorEventGenerator(PvLogRepository pvLogRepository,
@@ -23,6 +24,7 @@ public class BehaviorEventGenerator {
                                    ContentAuthorRepository contentAuthorRepository,
                                    PointsWeightConfigRepository pointsWeightConfigRepository,
                                    PointsLedgerRepository pointsLedgerRepository,
+                                   CommentRepository commentRepository,
                                    Random random) {
         this.pvLogRepository = pvLogRepository;
         this.engagementLogRepository = engagementLogRepository;
@@ -30,6 +32,7 @@ public class BehaviorEventGenerator {
         this.contentAuthorRepository = contentAuthorRepository;
         this.pointsWeightConfigRepository = pointsWeightConfigRepository;
         this.pointsLedgerRepository = pointsLedgerRepository;
+        this.commentRepository = commentRepository;
         this.random = random;
     }
 
@@ -74,6 +77,52 @@ public class BehaviorEventGenerator {
 
     public void generateLogin(Long employeeId, LocalDateTime occurTime, String batchId) {
         recordActive(employeeId, ActiveActionType.LOGIN, "LOGIN", null, occurTime, batchId);
+    }
+
+    public Comment generateComment(Long contentId, Long parentCommentId, Long commenterId,
+                                    LocalDateTime occurTime, String batchId) {
+        Comment saved = commentRepository.save(Comment.builder()
+            .contentId(contentId).employeeId(commenterId).parentCommentId(parentCommentId)
+            .createTime(occurTime).simulationBatchId(batchId).build());
+
+        recordActive(commenterId, ActiveActionType.COMMENT, "COMMENT", contentId, occurTime, batchId);
+
+        if (parentCommentId == null) {
+            creditContentAuthorsPassive(contentId, "CONTENT_COMMENTED", occurTime, batchId);
+        } else {
+            Comment parent = commentRepository.findById(parentCommentId)
+                .orElseThrow(() -> new IllegalStateException("Parent comment not found: " + parentCommentId));
+            int weight = pointsWeightConfigRepository
+                .findFirstByActionTypeOrderByEffectiveDateDesc("COMMENT_REPLIED")
+                .map(PointsWeightConfig::getWeight)
+                .orElseThrow(() -> new IllegalStateException("Missing points weight config for COMMENT_REPLIED"));
+            pointsLedgerRepository.save(PointsLedger.builder()
+                .employeeId(parent.getEmployeeId()).actionType("COMMENT_REPLIED")
+                .category(PointsCategory.PASSIVE).points(weight)
+                .refId(parentCommentId).occurTime(occurTime).simulationBatchId(batchId).build());
+        }
+
+        return saved;
+    }
+
+    public void generateCommentLike(Long commentId, Long actorId, LocalDateTime occurTime, String batchId) {
+        engagementLogRepository.save(EngagementLog.builder()
+            .commentId(commentId).actorEmployeeId(actorId)
+            .actionType(EngagementActionType.LIKE).occurTime(occurTime)
+            .simulationBatchId(batchId).build());
+
+        recordActive(actorId, ActiveActionType.LIKE, "LIKE", commentId, occurTime, batchId);
+
+        Comment comment = commentRepository.findById(commentId)
+            .orElseThrow(() -> new IllegalStateException("Comment not found: " + commentId));
+        int weight = pointsWeightConfigRepository
+            .findFirstByActionTypeOrderByEffectiveDateDesc("COMMENT_LIKED")
+            .map(PointsWeightConfig::getWeight)
+            .orElseThrow(() -> new IllegalStateException("Missing points weight config for COMMENT_LIKED"));
+        pointsLedgerRepository.save(PointsLedger.builder()
+            .employeeId(comment.getEmployeeId()).actionType("COMMENT_LIKED")
+            .category(PointsCategory.PASSIVE).points(weight)
+            .refId(commentId).occurTime(occurTime).simulationBatchId(batchId).build());
     }
 
     private void recordActive(Long employeeId, ActiveActionType actionType, String weightActionType,
