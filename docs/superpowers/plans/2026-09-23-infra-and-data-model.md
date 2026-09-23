@@ -99,7 +99,7 @@ JiaxianOp/
 
 这份计划在执行 Task 1/2 时，实际跑起来的 openGauss 镜像暴露出几个和最初假设不一致的地方，记录在这里，供后续所有任务参照（Task 1 的原始代码块保留不动，作为历史记录；下面是实际生效的版本）：
 
-1. **openGauss 的初始超级用户是 `opengauss`，不是 `gaussdb`**——`docker-compose.yml` 里只设 `GS_PASSWORD` 时，镜像创建的默认账号叫 `opengauss`。所有 `gsql` 手工验证命令已改成 `-U opengauss`。
+1. **openGauss 的初始超级用户是 `opengauss`，不是 `gaussdb`**——`docker-compose.yml` 里只设 `GS_PASSWORD` 时，镜像创建的默认账号叫 `opengauss`。（第 3 条会说明为什么后续所有验证命令改用 `jiaxian_app` 而不是 `opengauss`。）
 2. **`gsql` 不在容器默认 `PATH` 上**，需要用完整路径 `/usr/local/opengauss/bin/gsql`，并显式设置 `LD_LIBRARY_PATH=/usr/local/opengauss/lib`，所有验证命令已相应调整。
 3. **openGauss 的初始用户（`opengauss`）被硬编码禁止远程/TCP 连接**（`FATAL: Forbid remote connection with initial user`），只能通过本地 socket（容器内 `gsql`）登录，应用程序必须用另一个专门创建的账号连接。已在 `docker-compose.yml` 里给 `opengauss` 服务加了 `GS_USERNAME: "jiaxian_app"` 环境变量（复用同一个 `GS_PASSWORD` 作为密码，这是镜像入口脚本的固定行为），并手动执行了一次性授权：
    ```sql
@@ -168,7 +168,7 @@ Expected: 三个容器（jiaxian-opengauss / jiaxian-redis / jiaxian-kafka）都
 
 - [ ] **Step 3: 验证 OpenGauss 可连接**
 
-Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\l"`
+Run: `docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -h 127.0.0.1 -U jiaxian_app -d postgres -W "Jiaxian@2026" -c "\l"`
 Expected: 输出数据库列表（至少包含 `postgres` 库），不报连接错误。
 
 - [ ] **Step 4: Commit**
@@ -462,7 +462,7 @@ CREATE INDEX IF NOT EXISTS idx_comment_parent ON comment(parent_comment_id);
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止即可，只是触发 `schema.sql` 执行）
 Expected: 控制台无报错，日志中能看到 Spring Boot 执行了 `schema.sql`（关键字如 `Executing SQL script from class path resource [schema.sql]`）。
 
-Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
+Run: `docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -h 127.0.0.1 -U jiaxian_app -d postgres -W "Jiaxian@2026" -c "\dt"`
 Expected: 输出包含 `employee, channel, account, account_member, content, content_author, comment` 这些表。
 
 - [ ] **Step 3: Commit**
@@ -964,7 +964,7 @@ CREATE INDEX IF NOT EXISTS idx_points_ledger_employee_time ON points_ledger(empl
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
 Expected: 无报错，日志显示 `schema.sql` 执行成功。
 
-Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
+Run: `docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -h 127.0.0.1 -U jiaxian_app -d postgres -W "Jiaxian@2026" -c "\dt"`
 Expected: 新增 `pv_log, engagement_log, active_action_log, editorial_pick_log, points_weight_config, points_ledger` 六张表。
 
 - [ ] **Step 3: Commit**
@@ -1449,7 +1449,7 @@ ON CONFLICT (action_type, effective_date) DO NOTHING;
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
 Expected: 无报错，日志显示 `data.sql` 执行成功。
 
-Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "SELECT count(*) FROM channel; SELECT count(*) FROM points_weight_config;"`
+Run: `docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -h 127.0.0.1 -U jiaxian_app -d postgres -W "Jiaxian@2026" -c "SELECT count(*) FROM channel; SELECT count(*) FROM points_weight_config;"`
 Expected: `channel` 15 行，`points_weight_config` 15 行。再重复跑一次 `mvn spring-boot:run` 后重新执行这条 `SELECT count(*)`，行数应该还是 15/15（验证幂等性），不会变成 30/30。
 
 - [ ] **Step 4: Commit**
