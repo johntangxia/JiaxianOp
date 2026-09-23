@@ -4,9 +4,11 @@
 
 **Goal:** 搭建稼先社区运营分析模拟项目的后端/前端脚手架、本地依赖环境（OpenGauss+Redis+Kafka），落地数据模型（维度表+事实表+积分表），并实现历史数据批量回填模拟器，跑通"生成一批带真实感（幂律热度分布+双边积分记账）的模拟历史数据并写入数据库"这条链路。
 
-**Architecture:** Spring Boot（Maven，Java 17）后端 + Flyway 管理 OpenGauss schema + Spring Data JPA 访问；docker-compose 拉起 OpenGauss/Redis/Kafka 三个依赖（Redis/Kafka 本阶段只起容器，不接入业务逻辑，留给后续计划）；历史回填模拟器是纯后端服务，通过 REST API 触发，直接批量写库，不经过 Kafka。前端本阶段只做 Vite+Vue3+TS 脚手架和一个健康检查页面，验证前后端联通。
+**Architecture:** Spring Boot（Maven，Java 17）后端 + Spring Boot 内置的 `schema.sql`/`data.sql` 初始化机制管理 OpenGauss schema + Spring Data JPA 访问；docker-compose 拉起 OpenGauss/Redis/Kafka 三个依赖（Redis/Kafka 本阶段只起容器，不接入业务逻辑，留给后续计划）；历史回填模拟器是纯后端服务，通过 REST API 触发，直接批量写库，不经过 Kafka。前端本阶段只做 Vite+Vue3+TS 脚手架和一个健康检查页面，验证前后端联通。
 
-**Tech Stack:** Java 17 / Spring Boot 3.2 / Spring Data JPA / Flyway / OpenGauss（openGauss JDBC 驱动）/ Lombok / JUnit 5；Vue 3 + TypeScript + Vite；Docker Compose。
+**Tech Stack:** Java 17 / Spring Boot 3.2 / Spring Data JPA / OpenGauss（openGauss JDBC 驱动）/ Lombok / JUnit 5；Vue 3 + TypeScript + Vite；Docker Compose。
+
+**关于弃用 Flyway：** 原计划用 Flyway 做版本化迁移，但实际执行 Task 2 时发现 Flyway 社区版会因为 openGauss 的版本号自报为 "PostgreSQL 9.2"（openGauss 为兼容性做的伪装）而触发 Flyway 的商业许可限制，拒绝连接（`PostgreSQL 9.2 is no longer supported by Flyway Community Edition`），且没有简单的版本兼容组合能绕过。改用 Spring Boot 自带的 `spring.sql.init`（`schema.sql`/`data.sql`）机制，不引入任何迁移工具依赖——用两个持续追加的 SQL 文件代替版本化迁移脚本，牺牲了"迁移历史可追溯"这个能力，换取不被数据库方言绑死的简单性。
 
 ---
 
@@ -69,11 +71,8 @@ JiaxianOp/
 │       │   │       └── SimulatorController.java
 │       │   └── resources/
 │       │       ├── application.yml
-│       │       └── db/migration/
-│       │           ├── V1__create_dimension_tables.sql
-│       │           ├── V2__create_fact_and_points_tables.sql
-│       │           ├── V3__seed_channels.sql
-│       │           └── V4__seed_points_weight_config.sql
+│       │       ├── schema.sql
+│       │       └── data.sql
 │       └── test/java/com/jiaxian/analytics/
 │           ├── health/HealthControllerTest.java
 │           ├── repository/DimensionRepositoryIT.java
@@ -234,10 +233,6 @@ git commit -m "chore: add docker-compose for openGauss/redis/kafka local env"
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.opengauss</groupId>
       <artifactId>opengauss-jdbc</artifactId>
       <version>${opengauss-jdbc.version}</version>
@@ -279,16 +274,19 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    defer-datasource-initialization: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
+  sql:
+    init:
+      mode: always
 
 server:
   port: 8080
 ```
+
+**说明**：`spring.jpa.defer-datasource-initialization: true` 是必需的——默认情况下，classpath 上有 JPA 时，Hibernate 会在 `schema.sql`/`data.sql` 执行之前就先做 `ddl-auto: validate` 校验，这时表还不存在会直接报错。设为 `true` 后，Spring Boot 会保证 `schema.sql`/`data.sql` 先跑完，Hibernate 的 validate 再执行。`schema.sql`/`data.sql` 里的语句必须是幂等的（`CREATE TABLE IF NOT EXISTS`、`INSERT ... ON CONFLICT DO NOTHING`），因为 `mode: always` 意味着每次应用启动（包括每个 `@SpringBootTest` 测试类）都会重新执行一遍这两个文件。
 
 - [ ] **Step 3: 编写失败的健康检查测试**
 
@@ -326,7 +324,7 @@ class HealthControllerTest {
 
 - [ ] **Step 4: 运行测试确认失败**
 
-前提：`docker-compose up -d opengauss`（Spring Boot 启动时 Flyway 会尝试连接数据库，此时还没有任何迁移脚本，Flyway 会创建 `flyway_schema_history` 表并直接成功，属于正常空库状态）。
+前提：`docker-compose up -d opengauss`。此时 `schema.sql`/`data.sql` 还不存在（Task 3/5/7 才会创建），`spring.sql.init.mode: always` 在没有找到这两个文件时会直接跳过，不报错——Spring Boot 启动只需要数据源本身能连通（用 `jiaxian_app` 账号）。
 
 Run: `cd backend && mvn test -Dtest=HealthControllerTest`
 Expected: FAIL，报 404（`HealthController` 尚不存在）。
@@ -382,15 +380,15 @@ git commit -m "feat: bootstrap Spring Boot backend with health check endpoint"
 
 ---
 
-### Task 3: 维度表 Flyway 迁移脚本
+### Task 3: 维度表 Schema DDL
 
 **Files:**
-- Create: `backend/src/main/resources/db/migration/V1__create_dimension_tables.sql`
+- Create: `backend/src/main/resources/schema.sql`
 
-- [ ] **Step 1: 编写迁移脚本**
+- [ ] **Step 1: 编写 schema.sql**
 
 ```sql
-CREATE TABLE employee (
+CREATE TABLE IF NOT EXISTS employee (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(100) NOT NULL,
     dept                VARCHAR(100),
@@ -398,27 +396,28 @@ CREATE TABLE employee (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE channel (
+CREATE TABLE IF NOT EXISTS channel (
     id       BIGSERIAL PRIMARY KEY,
     name     VARCHAR(100) NOT NULL,
-    category VARCHAR(50) NOT NULL
+    category VARCHAR(50) NOT NULL,
+    UNIQUE (name)
 );
 
-CREATE TABLE account (
+CREATE TABLE IF NOT EXISTS account (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(200) NOT NULL,
     type                VARCHAR(20) NOT NULL CHECK (type IN ('PERSONAL', 'TEAM')),
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE account_member (
+CREATE TABLE IF NOT EXISTS account_member (
     id                  BIGSERIAL PRIMARY KEY,
     account_id          BIGINT NOT NULL REFERENCES account(id),
     employee_id         BIGINT NOT NULL REFERENCES employee(id),
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE content (
+CREATE TABLE IF NOT EXISTS content (
     id                  BIGSERIAL PRIMARY KEY,
     type                VARCHAR(20) NOT NULL CHECK (type IN ('ARTICLE', 'VIDEO')),
     channel_id          BIGINT NOT NULL REFERENCES channel(id),
@@ -428,14 +427,14 @@ CREATE TABLE content (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE content_author (
+CREATE TABLE IF NOT EXISTS content_author (
     id                  BIGSERIAL PRIMARY KEY,
     content_id          BIGINT NOT NULL REFERENCES content(id),
     employee_id         BIGINT NOT NULL REFERENCES employee(id),
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE comment (
+CREATE TABLE IF NOT EXISTS comment (
     id                  BIGSERIAL PRIMARY KEY,
     content_id          BIGINT NOT NULL REFERENCES content(id),
     employee_id         BIGINT NOT NULL REFERENCES employee(id),
@@ -444,31 +443,33 @@ CREATE TABLE comment (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE INDEX idx_account_member_account ON account_member(account_id);
-CREATE INDEX idx_account_member_employee ON account_member(employee_id);
-CREATE INDEX idx_content_channel ON content(channel_id);
-CREATE INDEX idx_content_account ON content(account_id);
-CREATE INDEX idx_content_author_content ON content_author(content_id);
-CREATE INDEX idx_content_author_employee ON content_author(employee_id);
-CREATE INDEX idx_comment_content ON comment(content_id);
-CREATE INDEX idx_comment_parent ON comment(parent_comment_id);
+CREATE INDEX IF NOT EXISTS idx_account_member_account ON account_member(account_id);
+CREATE INDEX IF NOT EXISTS idx_account_member_employee ON account_member(employee_id);
+CREATE INDEX IF NOT EXISTS idx_content_channel ON content(channel_id);
+CREATE INDEX IF NOT EXISTS idx_content_account ON content(account_id);
+CREATE INDEX IF NOT EXISTS idx_content_author_content ON content_author(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_author_employee ON content_author(employee_id);
+CREATE INDEX IF NOT EXISTS idx_comment_content ON comment(content_id);
+CREATE INDEX IF NOT EXISTS idx_comment_parent ON comment(parent_comment_id);
 ```
 
-- [ ] **Step 2: 运行验证迁移生效**
+**说明**：`channel` 表加了 `UNIQUE (name)` 约束——这是 Task 7 的种子数据要用 `ON CONFLICT (name) DO NOTHING` 做幂等插入所必需的（因为 `spring.sql.init.mode: always` 每次启动都会重新执行 `data.sql`）。所有 `CREATE TABLE`/`CREATE INDEX` 都加了 `IF NOT EXISTS`，同样是为了幂等——`schema.sql` 会在每次应用启动（包括每个 `@SpringBootTest`）时重新执行一遍。
+
+- [ ] **Step 2: 运行验证 schema.sql 生效**
 
 前提：`docker-compose up -d opengauss`
 
-Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止即可，只是触发 Flyway 迁移）
-Expected: 控制台输出 `Successfully applied 1 migration`，无报错。
+Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止即可，只是触发 `schema.sql` 执行）
+Expected: 控制台无报错，日志中能看到 Spring Boot 执行了 `schema.sql`（关键字如 `Executing SQL script from class path resource [schema.sql]`）。
 
 Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
-Expected: 输出包含 `employee, channel, account, account_member, content, content_author, comment, flyway_schema_history` 这些表。
+Expected: 输出包含 `employee, channel, account, account_member, content, content_author, comment` 这些表。
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add backend/src/main/resources/db/migration/V1__create_dimension_tables.sql
-git commit -m "feat: add Flyway migration for dimension tables"
+git add backend/src/main/resources/schema.sql
+git commit -m "feat: add schema.sql DDL for dimension tables"
 ```
 
 ---
@@ -881,15 +882,17 @@ git commit -m "feat: add dimension table entities and repositories"
 
 ---
 
-### Task 5: 事实表与积分表 Flyway 迁移脚本
+### Task 5: 事实表与积分表 Schema DDL
 
 **Files:**
-- Create: `backend/src/main/resources/db/migration/V2__create_fact_and_points_tables.sql`
+- Modify: `backend/src/main/resources/schema.sql`（在 Task 3 已有内容后追加）
 
-- [ ] **Step 1: 编写迁移脚本**
+- [ ] **Step 1: 追加 DDL 到 schema.sql**
+
+在 `schema.sql` 文件末尾追加以下内容：
 
 ```sql
-CREATE TABLE pv_log (
+CREATE TABLE IF NOT EXISTS pv_log (
     id                  BIGSERIAL PRIMARY KEY,
     content_id          BIGINT NOT NULL REFERENCES content(id),
     viewer_employee_id  BIGINT NOT NULL REFERENCES employee(id),
@@ -897,7 +900,7 @@ CREATE TABLE pv_log (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE engagement_log (
+CREATE TABLE IF NOT EXISTS engagement_log (
     id                  BIGSERIAL PRIMARY KEY,
     content_id          BIGINT REFERENCES content(id),
     comment_id          BIGINT REFERENCES comment(id),
@@ -908,7 +911,7 @@ CREATE TABLE engagement_log (
     CHECK (content_id IS NOT NULL OR comment_id IS NOT NULL)
 );
 
-CREATE TABLE active_action_log (
+CREATE TABLE IF NOT EXISTS active_action_log (
     id                  BIGSERIAL PRIMARY KEY,
     employee_id         BIGINT NOT NULL REFERENCES employee(id),
     action_type         VARCHAR(20) NOT NULL CHECK (action_type IN
@@ -918,22 +921,23 @@ CREATE TABLE active_action_log (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE editorial_pick_log (
+CREATE TABLE IF NOT EXISTS editorial_pick_log (
     id                  BIGSERIAL PRIMARY KEY,
     content_id          BIGINT NOT NULL REFERENCES content(id),
     pick_time           TIMESTAMP NOT NULL,
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE TABLE points_weight_config (
+CREATE TABLE IF NOT EXISTS points_weight_config (
     id              BIGSERIAL PRIMARY KEY,
     action_type     VARCHAR(30) NOT NULL,
     category        VARCHAR(10) NOT NULL CHECK (category IN ('ACTIVE', 'PASSIVE')),
     weight          INT NOT NULL,
-    effective_date  DATE NOT NULL
+    effective_date  DATE NOT NULL,
+    UNIQUE (action_type, effective_date)
 );
 
-CREATE TABLE points_ledger (
+CREATE TABLE IF NOT EXISTS points_ledger (
     id                  BIGSERIAL PRIMARY KEY,
     employee_id         BIGINT NOT NULL REFERENCES employee(id),
     action_type         VARCHAR(30) NOT NULL,
@@ -944,19 +948,21 @@ CREATE TABLE points_ledger (
     simulation_batch_id VARCHAR(64)
 );
 
-CREATE INDEX idx_pv_log_content ON pv_log(content_id);
-CREATE INDEX idx_pv_log_view_time ON pv_log(view_time);
-CREATE INDEX idx_engagement_log_content ON engagement_log(content_id);
-CREATE INDEX idx_engagement_log_comment ON engagement_log(comment_id);
-CREATE INDEX idx_active_action_log_employee ON active_action_log(employee_id);
-CREATE INDEX idx_editorial_pick_content ON editorial_pick_log(content_id);
-CREATE INDEX idx_points_ledger_employee_time ON points_ledger(employee_id, occur_time);
+CREATE INDEX IF NOT EXISTS idx_pv_log_content ON pv_log(content_id);
+CREATE INDEX IF NOT EXISTS idx_pv_log_view_time ON pv_log(view_time);
+CREATE INDEX IF NOT EXISTS idx_engagement_log_content ON engagement_log(content_id);
+CREATE INDEX IF NOT EXISTS idx_engagement_log_comment ON engagement_log(comment_id);
+CREATE INDEX IF NOT EXISTS idx_active_action_log_employee ON active_action_log(employee_id);
+CREATE INDEX IF NOT EXISTS idx_editorial_pick_content ON editorial_pick_log(content_id);
+CREATE INDEX IF NOT EXISTS idx_points_ledger_employee_time ON points_ledger(employee_id, occur_time);
 ```
 
-- [ ] **Step 2: 运行验证迁移生效**
+**说明**：`points_weight_config` 加了 `UNIQUE (action_type, effective_date)`，原因同 Task 3 的 `channel.name`——Task 7 的种子数据要靠这个约束做 `ON CONFLICT DO NOTHING` 幂等插入。
+
+- [ ] **Step 2: 运行验证 schema.sql 生效**
 
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
-Expected: 输出 `Successfully applied 1 migration`（相对上次基线新增 1 个版本）。
+Expected: 无报错，日志显示 `schema.sql` 执行成功。
 
 Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
 Expected: 新增 `pv_log, engagement_log, active_action_log, editorial_pick_log, points_weight_config, points_ledger` 六张表。
@@ -964,8 +970,8 @@ Expected: 新增 `pv_log, engagement_log, active_action_log, editorial_pick_log,
 - [ ] **Step 3: Commit**
 
 ```bash
-git add backend/src/main/resources/db/migration/V2__create_fact_and_points_tables.sql
-git commit -m "feat: add Flyway migration for fact and points tables"
+git add backend/src/main/resources/schema.sql
+git commit -m "feat: extend schema.sql with fact and points tables"
 ```
 
 ---
@@ -1390,10 +1396,9 @@ git commit -m "feat: add fact and points table entities and repositories"
 ### Task 7: 频道种子数据与积分权重种子数据
 
 **Files:**
-- Create: `backend/src/main/resources/db/migration/V3__seed_channels.sql`
-- Create: `backend/src/main/resources/db/migration/V4__seed_points_weight_config.sql`
+- Create: `backend/src/main/resources/data.sql`
 
-- [ ] **Step 1: 编写频道种子数据迁移脚本**
+- [ ] **Step 1: 编写频道种子数据**
 
 ```sql
 INSERT INTO channel (name, category) VALUES
@@ -1411,10 +1416,11 @@ INSERT INTO channel (name, category) VALUES
     ('智能汽车', '专业领域'),
     ('知识产权', '专业领域'),
     ('制造', '专业领域'),
-    ('供应链', '专业领域');
+    ('供应链', '专业领域')
+ON CONFLICT (name) DO NOTHING;
 ```
 
-- [ ] **Step 2: 编写积分权重种子数据迁移脚本**
+- [ ] **Step 2: 在同一个 data.sql 文件里追加积分权重种子数据**
 
 ```sql
 INSERT INTO points_weight_config (action_type, category, weight, effective_date) VALUES
@@ -1432,22 +1438,24 @@ INSERT INTO points_weight_config (action_type, category, weight, effective_date)
     ('CONTENT_FAVORITED', 'PASSIVE', 5, '2026-01-01'),
     ('CONTENT_LIKED', 'PASSIVE', 3, '2026-01-01'),
     ('COMMENT_LIKED', 'PASSIVE', 3, '2026-01-01'),
-    ('CONTENT_VIEWED', 'PASSIVE', 1, '2026-01-01');
+    ('CONTENT_VIEWED', 'PASSIVE', 1, '2026-01-01')
+ON CONFLICT (action_type, effective_date) DO NOTHING;
 ```
 
-- [ ] **Step 3: 运行验证迁移生效**
+**说明**：两段 `INSERT` 都用 `ON CONFLICT ... DO NOTHING`，配合 Task 3/5 给 `channel.name` 和 `points_weight_config(action_type, effective_date)` 加的 `UNIQUE` 约束，保证 `data.sql` 在每次应用启动时重复执行也不会报重复键错误或产生重复行。
+
+- [ ] **Step 3: 运行验证 data.sql 生效**
 
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
-Expected: 输出 `Successfully applied 2 migrations`。
+Expected: 无报错，日志显示 `data.sql` 执行成功。
 
 Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "SELECT count(*) FROM channel; SELECT count(*) FROM points_weight_config;"`
-Expected: `channel` 15 行，`points_weight_config` 15 行。
+Expected: `channel` 15 行，`points_weight_config` 15 行。再重复跑一次 `mvn spring-boot:run` 后重新执行这条 `SELECT count(*)`，行数应该还是 15/15（验证幂等性），不会变成 30/30。
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add backend/src/main/resources/db/migration/V3__seed_channels.sql \
-        backend/src/main/resources/db/migration/V4__seed_points_weight_config.sql
+git add backend/src/main/resources/data.sql
 git commit -m "feat: seed channel list and points weight config"
 ```
 
