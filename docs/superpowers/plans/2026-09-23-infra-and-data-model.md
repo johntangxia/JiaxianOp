@@ -108,8 +108,9 @@ JiaxianOp/
    GRANT ALL PRIVILEGES ON SCHEMA public TO jiaxian_app;
    ```
    已验证 `jiaxian_app` 可以远程连接并建表。**这个授权是一次性手工操作，不在任何迁移脚本里**——如果之后有人删掉 `opengauss-data` 这个 docker volume 重新初始化，需要在 Task 1 验证步骤之后、Task 2 开始前，重新手工执行这三行 SQL（用 `-U opengauss` 登录后执行）。后续所有任务里，Spring Boot `application.yml` 的数据源账号统一使用 `jiaxian_app`，不用 `opengauss`（超级用户只用于人工排查，不用于应用连接）。
+4. **这套 openGauss 5.0.0 镜像不支持标准 PostgreSQL 的 `ON CONFLICT` upsert 语法**——直接用 `gsql` 验证过 `ON CONFLICT (col) DO NOTHING`、`ON CONFLICT DO NOTHING`、`ON CONFLICT ON CONSTRAINT ...` 三种写法都报语法错误，不是 JDBC 驱动的问题。改用 openGauss 实际支持的 MySQL 风格 `INSERT ... ON DUPLICATE KEY UPDATE <非主键列> = <非主键列>`（自身赋值当"什么也不做"），触发条件还是原有的 `UNIQUE` 约束，不需要改 schema。Task 7 的 `data.sql` 已经按这个语法写。以后如果哪个任务要写新的幂等 `INSERT`，都要用这个写法，不要用 `ON CONFLICT`。
 5. **openGauss 的 `DATE` 类型在这套镜像的默认兼容模式下，物理存储/上报类型其实是 `TIMESTAMP`**——`SHOW sql_compatibility` 返回 `A`（Oracle 兼容模式），这个模式下 `DATE` 带时间部分，JDBC 层面报告的类型是 `timestamp without time zone`，不是标准 PostgreSQL 语义里的纯日期类型。这导致 Hibernate 的 `ddl-auto: validate` 会报类型不匹配（`wrong column type ... found [timestamp], but expecting [date]`）。**处理方式**：`schema.sql` 里继续用 `DATE`（准确表达"这是一个日期语义字段"的设计意图），对应的 JPA 实体字段保持 `LocalDate`（Java 侧语义不变），但要显式加 `@JdbcTypeCode(SqlTypes.TIMESTAMP)` 注解告诉 Hibernate 按实际物理类型校验。目前受影响的字段：`Employee.joinDate`（Task 4）、`PointsWeightConfig.effectiveDate`（Task 6）——这两个任务的实体代码已经包含这个注解。以后如果新增任何 `DATE` 类型的列，都要同样加这个注解。
-4. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
+6. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
 
 ---
 
@@ -1425,7 +1426,7 @@ INSERT INTO channel (name, category) VALUES
     ('知识产权', '专业领域'),
     ('制造', '专业领域'),
     ('供应链', '专业领域')
-ON CONFLICT (name) DO NOTHING;
+ON DUPLICATE KEY UPDATE category = category;
 ```
 
 - [ ] **Step 2: 在同一个 data.sql 文件里追加积分权重种子数据**
@@ -1447,10 +1448,10 @@ INSERT INTO points_weight_config (action_type, category, weight, effective_date)
     ('CONTENT_LIKED', 'PASSIVE', 3, '2026-01-01'),
     ('COMMENT_LIKED', 'PASSIVE', 3, '2026-01-01'),
     ('CONTENT_VIEWED', 'PASSIVE', 1, '2026-01-01')
-ON CONFLICT (action_type, effective_date) DO NOTHING;
+ON DUPLICATE KEY UPDATE weight = weight;
 ```
 
-**说明**：两段 `INSERT` 都用 `ON CONFLICT ... DO NOTHING`，配合 Task 3/5 给 `channel.name` 和 `points_weight_config(action_type, effective_date)` 加的 `UNIQUE` 约束，保证 `data.sql` 在每次应用启动时重复执行也不会报重复键错误或产生重复行。
+**说明（已根据实际执行结果修正）**：计划原文用的是标准 PostgreSQL 的 `ON CONFLICT ... DO NOTHING` 语法，但 Task 7 实际执行时发现这套 openGauss 5.0.0 镜像**不支持 `ON CONFLICT` 子句**（直接用 `gsql` 试了 `ON CONFLICT (col)`、`ON CONFLICT DO NOTHING`、`ON CONFLICT ON CONSTRAINT ...` 三种写法都是语法错误，排除了 JDBC 驱动或语句拆分的问题）。openGauss 这个版本提供的是 MySQL 风格的 `INSERT ... ON DUPLICATE KEY UPDATE <非主键列> = <值>` upsert 语法，触发条件仍然是已有的 `UNIQUE` 约束（`channel.name`、`points_weight_config(action_type, effective_date)`，Task 3/5 已经建好，不需要改 schema）。两段 `INSERT` 改成了 `ON DUPLICATE KEY UPDATE <某个非主键列> = <同一列>` 这种自身赋值的写法（`category = category` / `weight = weight`），效果等价于"冲突就什么也不做"，同样保证 `data.sql` 每次应用启动时重复执行不会报重复键错误或产生重复行。
 
 - [ ] **Step 3: 运行验证 data.sql 生效**
 
