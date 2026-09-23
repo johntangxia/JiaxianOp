@@ -61,6 +61,21 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- This project runs everything (unit + integration tests) through plain
+               `mvn test`, not a separate `mvn verify`/failsafe phase, so Surefire's
+               default include pattern (which excludes *IT.java) has to be widened
+               to also pick up this project's *IT-suffixed integration test classes. -->
+          <includes>
+            <include>**/*Test.java</include>
+            <include>**/*Tests.java</include>
+            <include>**/*IT.java</include>
+          </includes>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
