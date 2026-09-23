@@ -111,6 +111,7 @@ JiaxianOp/
 4. **这套 openGauss 5.0.0 镜像不支持标准 PostgreSQL 的 `ON CONFLICT` upsert 语法**——直接用 `gsql` 验证过 `ON CONFLICT (col) DO NOTHING`、`ON CONFLICT DO NOTHING`、`ON CONFLICT ON CONSTRAINT ...` 三种写法都报语法错误，不是 JDBC 驱动的问题。改用 openGauss 实际支持的 MySQL 风格 `INSERT ... ON DUPLICATE KEY UPDATE <非主键列> = <非主键列>`（自身赋值当"什么也不做"），触发条件还是原有的 `UNIQUE` 约束，不需要改 schema。Task 7 的 `data.sql` 已经按这个语法写。以后如果哪个任务要写新的幂等 `INSERT`，都要用这个写法，不要用 `ON CONFLICT`。
 5. **openGauss 的 `DATE` 类型在这套镜像的默认兼容模式下，物理存储/上报类型其实是 `TIMESTAMP`**——`SHOW sql_compatibility` 返回 `A`（Oracle 兼容模式），这个模式下 `DATE` 带时间部分，JDBC 层面报告的类型是 `timestamp without time zone`，不是标准 PostgreSQL 语义里的纯日期类型。这导致 Hibernate 的 `ddl-auto: validate` 会报类型不匹配（`wrong column type ... found [timestamp], but expecting [date]`）。**处理方式**：`schema.sql` 里继续用 `DATE`（准确表达"这是一个日期语义字段"的设计意图），对应的 JPA 实体字段保持 `LocalDate`（Java 侧语义不变），但要显式加 `@JdbcTypeCode(SqlTypes.TIMESTAMP)` 注解告诉 Hibernate 按实际物理类型校验。目前受影响的字段：`Employee.joinDate`（Task 4）、`PointsWeightConfig.effectiveDate`（Task 6）——这两个任务的实体代码已经包含这个注解。以后如果新增任何 `DATE` 类型的列，都要同样加这个注解。
 6. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
+7. **Task 4/Task 6 的集成测试原本用真实频道名/积分行为名做测试夹具，和 Task 7 的种子数据撞车**——Task 7 的 `data.sql` 在 `spring.sql.init.mode: always` 下每次应用启动都会真的把 15 个频道和 15 条积分权重配置插进数据库（不是测试专属的临时数据）。`DimensionRepositoryIT` 原来建了一个名为"半导体"的频道、`FactAndPointsRepositoryIT` 原来建了一个名为"移动无线"的频道、还往 `points_weight_config` 插了一条 `action_type='LIKE', effective_date=2026-01-01` 的记录——这三个值都跟 Task 7 的真实种子数据完全撞上了 `UNIQUE` 约束，导致跑完整个 `mvn test`（而不是单独 `-Dtest=` 某一个类）时这两个集成测试会报 `duplicate key value violates unique constraint`。这是 Task 9 验证"跑全量测试"时才暴露出来的——单独跑每个任务自己的测试类时不会触发，因为当时数据库里还没有 Task 7 的种子数据。**修正**：把这两个测试里的频道名改成 `测试频道-维度测试`、`测试频道-事实积分测试`，`action_type` 从 `LIKE` 改成 `TEST_LIKE`，避开真实种子数据的名字空间。已验证连续跑两次 `mvn test`（不带 `-Dtest`）都是 `BUILD SUCCESS`。**以后任何任务写涉及 `channel.name` 或 `points_weight_config(action_type, effective_date)` 的测试夹具，都不能用 Task 7 种子数据里的真实值**（15 个频道名见 Task 7；15 个 action_type 见同一任务），得用明显是测试专用的名字。
 
 ---
 
@@ -536,7 +537,7 @@ class DimensionRepositoryIT {
                 .simulationBatchId("test-batch").build());
 
         Channel channel = channelRepository.save(
-            Channel.builder().name("半导体").category("专业领域").build());
+            Channel.builder().name("测试频道-维度测试").category("专业领域").build());
 
         Account teamAccount = accountRepository.save(
             Account.builder().name("芯观察").type(AccountType.TEAM).simulationBatchId("test-batch").build());
@@ -1041,7 +1042,7 @@ class FactAndPointsRepositoryIT {
         Employee author = employeeRepository.save(
             Employee.builder().name("赵六").simulationBatchId("test-batch").build());
         Channel channel = channelRepository.save(
-            Channel.builder().name("移动无线").category("专业领域").build());
+            Channel.builder().name("测试频道-事实积分测试").category("专业领域").build());
         Account account = accountRepository.save(
             Account.builder().name("赵六的账号").type(AccountType.PERSONAL)
                 .simulationBatchId("test-batch").build());
@@ -1066,7 +1067,7 @@ class FactAndPointsRepositoryIT {
             .pickTime(LocalDateTime.now()).simulationBatchId("test-batch").build());
 
         pointsWeightConfigRepository.save(PointsWeightConfig.builder()
-            .actionType("LIKE").category(PointsCategory.PASSIVE).weight(3)
+            .actionType("TEST_LIKE").category(PointsCategory.PASSIVE).weight(3)
             .effectiveDate(LocalDate.of(2026, 1, 1)).build());
 
         pointsLedgerRepository.save(PointsLedger.builder().employeeId(author.getId())

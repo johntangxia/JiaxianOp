@@ -33,7 +33,7 @@ class DimensionRepositoryIT {
                 .simulationBatchId("test-batch").build());
 
         Channel channel = channelRepository.save(
-            Channel.builder().name("半导体").category("专业领域").build());
+            Channel.builder().name("测试频道-维度测试").category("专业领域").build());
 
         Account teamAccount = accountRepository.save(
             Account.builder().name("芯观察").type(AccountType.TEAM).simulationBatchId("test-batch").build());

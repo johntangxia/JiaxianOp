@@ -34,7 +34,7 @@ class FactAndPointsRepositoryIT {
         Employee author = employeeRepository.save(
             Employee.builder().name("赵六").simulationBatchId("test-batch").build());
         Channel channel = channelRepository.save(
-            Channel.builder().name("移动无线").category("专业领域").build());
+            Channel.builder().name("测试频道-事实积分测试").category("专业领域").build());
         Account account = accountRepository.save(
             Account.builder().name("赵六的账号").type(AccountType.PERSONAL)
                 .simulationBatchId("test-batch").build());
@@ -59,7 +59,7 @@ class FactAndPointsRepositoryIT {
             .pickTime(LocalDateTime.now()).simulationBatchId("test-batch").build());
 
         pointsWeightConfigRepository.save(PointsWeightConfig.builder()
-            .actionType("LIKE").category(PointsCategory.PASSIVE).weight(3)
+            .actionType("TEST_LIKE").category(PointsCategory.PASSIVE).weight(3)
             .effectiveDate(LocalDate.of(2026, 1, 1)).build());
 
         pointsLedgerRepository.save(PointsLedger.builder().employeeId(author.getId())
