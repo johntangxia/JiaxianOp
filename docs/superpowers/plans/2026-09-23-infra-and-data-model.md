@@ -154,7 +154,7 @@ Expected: 三个容器（jiaxian-opengauss / jiaxian-redis / jiaxian-kafka）都
 
 - [ ] **Step 3: 验证 OpenGauss 可连接**
 
-Run: `docker exec -it jiaxian-opengauss gsql -U gaussdb -d postgres -c "\l"`
+Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\l"`
 Expected: 输出数据库列表（至少包含 `postgres` 库），不报连接错误。
 
 - [ ] **Step 4: Commit**
@@ -258,7 +258,7 @@ spring:
     name: jiaxian-analytics
   datasource:
     url: jdbc:opengauss://localhost:5432/postgres
-    username: gaussdb
+    username: opengauss
     password: "Jiaxian@2026"
     driver-class-name: org.opengauss.Driver
   jpa:
@@ -446,7 +446,7 @@ CREATE INDEX idx_comment_parent ON comment(parent_comment_id);
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止即可，只是触发 Flyway 迁移）
 Expected: 控制台输出 `Successfully applied 1 migration`，无报错。
 
-Run: `docker exec -it jiaxian-opengauss gsql -U gaussdb -d postgres -c "\dt"`
+Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
 Expected: 输出包含 `employee, channel, account, account_member, content, content_author, comment, flyway_schema_history` 这些表。
 
 - [ ] **Step 3: Commit**
@@ -943,7 +943,7 @@ CREATE INDEX idx_points_ledger_employee_time ON points_ledger(employee_id, occur
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
 Expected: 输出 `Successfully applied 1 migration`（相对上次基线新增 1 个版本）。
 
-Run: `docker exec -it jiaxian-opengauss gsql -U gaussdb -d postgres -c "\dt"`
+Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "\dt"`
 Expected: 新增 `pv_log, engagement_log, active_action_log, editorial_pick_log, points_weight_config, points_ledger` 六张表。
 
 - [ ] **Step 3: Commit**
@@ -1425,7 +1425,7 @@ INSERT INTO points_weight_config (action_type, category, weight, effective_date)
 Run: `cd backend && mvn spring-boot:run` （启动后 Ctrl+C 停止）
 Expected: 输出 `Successfully applied 2 migrations`。
 
-Run: `docker exec -it jiaxian-opengauss gsql -U gaussdb -d postgres -c "SELECT count(*) FROM channel; SELECT count(*) FROM points_weight_config;"`
+Run: `docker exec -it -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -U opengauss -d postgres -c "SELECT count(*) FROM channel; SELECT count(*) FROM points_weight_config;"`
 Expected: `channel` 15 行，`points_weight_config` 15 行。
 
 - [ ] **Step 4: Commit**
