@@ -108,6 +108,7 @@ JiaxianOp/
    GRANT ALL PRIVILEGES ON SCHEMA public TO jiaxian_app;
    ```
    已验证 `jiaxian_app` 可以远程连接并建表。**这个授权是一次性手工操作，不在任何迁移脚本里**——如果之后有人删掉 `opengauss-data` 这个 docker volume 重新初始化，需要在 Task 1 验证步骤之后、Task 2 开始前，重新手工执行这三行 SQL（用 `-U opengauss` 登录后执行）。后续所有任务里，Spring Boot `application.yml` 的数据源账号统一使用 `jiaxian_app`，不用 `opengauss`（超级用户只用于人工排查，不用于应用连接）。
+5. **openGauss 的 `DATE` 类型在这套镜像的默认兼容模式下，物理存储/上报类型其实是 `TIMESTAMP`**——`SHOW sql_compatibility` 返回 `A`（Oracle 兼容模式），这个模式下 `DATE` 带时间部分，JDBC 层面报告的类型是 `timestamp without time zone`，不是标准 PostgreSQL 语义里的纯日期类型。这导致 Hibernate 的 `ddl-auto: validate` 会报类型不匹配（`wrong column type ... found [timestamp], but expecting [date]`）。**处理方式**：`schema.sql` 里继续用 `DATE`（准确表达"这是一个日期语义字段"的设计意图），对应的 JPA 实体字段保持 `LocalDate`（Java 侧语义不变），但要显式加 `@JdbcTypeCode(SqlTypes.TIMESTAMP)` 注解告诉 Hibernate 按实际物理类型校验。目前受影响的字段：`Employee.joinDate`（Task 4）、`PointsWeightConfig.effectiveDate`（Task 6）——这两个任务的实体代码已经包含这个注解。以后如果新增任何 `DATE` 类型的列，都要同样加这个注解。
 4. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
 
 ---
@@ -587,6 +588,8 @@ package com.jiaxian.analytics.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 
@@ -602,6 +605,7 @@ public class Employee {
     private String dept;
 
     @Column(name = "join_date")
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
     private LocalDate joinDate;
 
     @Column(name = "simulation_batch_id")
@@ -1242,6 +1246,8 @@ package com.jiaxian.analytics.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 
@@ -1262,6 +1268,7 @@ public class PointsWeightConfig {
     private Integer weight;
 
     @Column(name = "effective_date")
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
     private LocalDate effectiveDate;
 }
 ```
