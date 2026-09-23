@@ -96,6 +96,20 @@ JiaxianOp/
 
 **关于集成测试的前提条件**：所有带 `IT` 后缀的测试类需要连接真实 OpenGauss（通过 `docker-compose up -d opengauss` 启动），这是一个刻意选择——openGauss 目前没有官方维护的 Testcontainers 镜像，与其用不保真的替代数据库（如用纯 PostgreSQL 容器）掩盖潜在的方言差异，不如直接对真实 openGauss 跑集成测试，这也更符合"参考实现"的定位。每个 Task 的集成测试步骤都会注明这个前提。
 
+## 执行过程中发现的修正记录
+
+这份计划在执行 Task 1/2 时，实际跑起来的 openGauss 镜像暴露出几个和最初假设不一致的地方，记录在这里，供后续所有任务参照（Task 1 的原始代码块保留不动，作为历史记录；下面是实际生效的版本）：
+
+1. **openGauss 的初始超级用户是 `opengauss`，不是 `gaussdb`**——`docker-compose.yml` 里只设 `GS_PASSWORD` 时，镜像创建的默认账号叫 `opengauss`。所有 `gsql` 手工验证命令已改成 `-U opengauss`。
+2. **`gsql` 不在容器默认 `PATH` 上**，需要用完整路径 `/usr/local/opengauss/bin/gsql`，并显式设置 `LD_LIBRARY_PATH=/usr/local/opengauss/lib`，所有验证命令已相应调整。
+3. **openGauss 的初始用户（`opengauss`）被硬编码禁止远程/TCP 连接**（`FATAL: Forbid remote connection with initial user`），只能通过本地 socket（容器内 `gsql`）登录，应用程序必须用另一个专门创建的账号连接。已在 `docker-compose.yml` 里给 `opengauss` 服务加了 `GS_USERNAME: "jiaxian_app"` 环境变量（复用同一个 `GS_PASSWORD` 作为密码，这是镜像入口脚本的固定行为），并手动执行了一次性授权：
+   ```sql
+   ALTER USER jiaxian_app CREATEDB;
+   GRANT ALL PRIVILEGES ON DATABASE postgres TO jiaxian_app;
+   GRANT ALL PRIVILEGES ON SCHEMA public TO jiaxian_app;
+   ```
+   已验证 `jiaxian_app` 可以远程连接并建表。**这个授权是一次性手工操作，不在任何迁移脚本里**——如果之后有人删掉 `opengauss-data` 这个 docker volume 重新初始化，需要在 Task 1 验证步骤之后、Task 2 开始前，重新手工执行这三行 SQL（用 `-U opengauss` 登录后执行）。后续所有任务里，Spring Boot `application.yml` 的数据源账号统一使用 `jiaxian_app`，不用 `opengauss`（超级用户只用于人工排查，不用于应用连接）。
+
 ---
 
 ### Task 1: docker-compose 本地依赖环境
@@ -114,6 +128,7 @@ services:
     container_name: jiaxian-opengauss
     environment:
       GS_PASSWORD: "Jiaxian@2026"
+      GS_USERNAME: "jiaxian_app"
     ports:
       - "5432:5432"
     volumes:
@@ -257,10 +272,10 @@ spring:
   application:
     name: jiaxian-analytics
   datasource:
-    url: jdbc:opengauss://localhost:5432/postgres
-    username: opengauss
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: jiaxian_app
     password: "Jiaxian@2026"
-    driver-class-name: org.opengauss.Driver
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
