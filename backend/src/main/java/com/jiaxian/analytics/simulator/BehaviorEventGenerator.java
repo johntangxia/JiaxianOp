@@ -36,6 +36,10 @@ public class BehaviorEventGenerator {
         this.random = random;
     }
 
+    public void generatePost(Long contentId, Long authorId, LocalDateTime occurTime, String batchId) {
+        recordActive(authorId, ActiveActionType.POST, "POST", contentId, occurTime, batchId);
+    }
+
     public void generateView(Long contentId, Long viewerId, LocalDateTime occurTime, String batchId) {
         pvLogRepository.save(PvLog.builder()
             .contentId(contentId).viewerEmployeeId(viewerId).viewTime(occurTime)

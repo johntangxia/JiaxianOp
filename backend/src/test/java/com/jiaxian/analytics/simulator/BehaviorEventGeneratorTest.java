@@ -73,6 +73,34 @@ class BehaviorEventGeneratorTest {
     }
 
     @Test
+    void postEventCreditsAuthorActivePointsOnly() {
+        Long contentId = 500L;
+        Long authorId = 60L;
+
+        when(pointsWeightConfigRepository.findFirstByActionTypeOrderByEffectiveDateDesc("POST"))
+            .thenReturn(java.util.Optional.of(PointsWeightConfig.builder()
+                .actionType("POST").category(PointsCategory.ACTIVE).weight(100)
+                .effectiveDate(LocalDate.of(2026, 1, 1)).build()));
+
+        BehaviorEventGenerator generator = new BehaviorEventGenerator(
+            pvLogRepository, engagementLogRepository, activeActionLogRepository,
+            contentAuthorRepository, pointsWeightConfigRepository, pointsLedgerRepository,
+            commentRepository, new Random(1));
+
+        generator.generatePost(contentId, authorId, LocalDateTime.now(), "test-batch");
+
+        verify(contentAuthorRepository, never()).findByContentId(any());
+
+        ArgumentCaptor<PointsLedger> captor = ArgumentCaptor.forClass(PointsLedger.class);
+        verify(pointsLedgerRepository, times(1)).save(captor.capture());
+        PointsLedger entry = captor.getValue();
+        assertThat(entry.getEmployeeId()).isEqualTo(authorId);
+        assertThat(entry.getCategory()).isEqualTo(PointsCategory.ACTIVE);
+        assertThat(entry.getPoints()).isEqualTo(100);
+        assertThat(entry.getActionType()).isEqualTo("POST");
+    }
+
+    @Test
     void postingTopLevelCommentCreditsCommenterAndContentAuthor() {
         Long contentId = 200L;
         Long commenterId = 10L;

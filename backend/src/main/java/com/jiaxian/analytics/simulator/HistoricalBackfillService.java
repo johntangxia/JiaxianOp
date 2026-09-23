@@ -1,12 +1,16 @@
 package com.jiaxian.analytics.simulator;
 
+import com.jiaxian.analytics.domain.Comment;
 import com.jiaxian.analytics.domain.Content;
+import com.jiaxian.analytics.domain.ContentAuthor;
 import com.jiaxian.analytics.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 @Service
@@ -71,6 +75,15 @@ public class HistoricalBackfillService {
             commentRepository, random);
 
         for (Content content : entities.getContents()) {
+            List<ContentAuthor> authors = contentAuthorRepository.findByContentId(content.getId());
+            for (ContentAuthor author : authors) {
+                eventGenerator.generatePost(content.getId(), author.getEmployeeId(),
+                    content.getPublishTime(), config.getBatchId());
+            }
+        }
+
+        for (Content content : entities.getContents()) {
+            List<Comment> topLevelComments = new ArrayList<>();
             // 热度权重越高，围绕这篇内容产生的浏览/点赞/评论事件越多，制造二八效应。
             int viewCount = 1 + (int) (content.getPopularityWeight() * 50);
             for (int i = 0; i < viewCount; i++) {
@@ -88,8 +101,16 @@ public class HistoricalBackfillService {
                     eventGenerator.generateFavorite(content.getId(), viewer.getId(), occurTime, config.getBatchId());
                 }
                 if (random.nextDouble() < 0.08) {
-                    var comment = eventGenerator.generateComment(
-                        content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                    Comment comment;
+                    if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
+                        Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
+                        comment = eventGenerator.generateComment(
+                            content.getId(), parent.getId(), viewer.getId(), occurTime, config.getBatchId());
+                    } else {
+                        comment = eventGenerator.generateComment(
+                            content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                        topLevelComments.add(comment);
+                    }
                     if (random.nextDouble() < 0.3) {
                         var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
                         eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), occurTime, config.getBatchId());
@@ -121,6 +142,7 @@ public class HistoricalBackfillService {
         activeActionLogRepository.deleteAll();
         engagementLogRepository.deleteAll();
         pvLogRepository.deleteAll();
+        commentRepository.deleteReplies();
         commentRepository.deleteAll();
         contentAuthorRepository.deleteAll();
         contentRepository.deleteAll();
