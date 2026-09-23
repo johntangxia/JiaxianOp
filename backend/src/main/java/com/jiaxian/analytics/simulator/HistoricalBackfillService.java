@@ -104,8 +104,9 @@ public class HistoricalBackfillService {
                     Comment comment;
                     if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
                         Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
+                        LocalDateTime replyTime = randomTimeAfter(parent.getCreateTime(), random);
                         comment = eventGenerator.generateComment(
-                            content.getId(), parent.getId(), viewer.getId(), occurTime, config.getBatchId());
+                            content.getId(), parent.getId(), viewer.getId(), replyTime, config.getBatchId());
                     } else {
                         comment = eventGenerator.generateComment(
                             content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
@@ -113,7 +114,8 @@ public class HistoricalBackfillService {
                     }
                     if (random.nextDouble() < 0.3) {
                         var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
-                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), occurTime, config.getBatchId());
+                        LocalDateTime likeTime = randomTimeAfter(comment.getCreateTime(), random);
+                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), likeTime, config.getBatchId());
                     }
                 }
             }
