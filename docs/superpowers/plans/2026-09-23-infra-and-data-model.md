@@ -3225,3 +3225,145 @@ git add backend/src/main/java/com/jiaxian/analytics/simulator/BehaviorEventGener
         backend/src/test/java/com/jiaxian/analytics/simulator/HistoricalBackfillServiceIT.java
 git commit -m "fix: generate POST points and second-level comment replies in backfill"
 ```
+
+---
+
+## Task 17（收尾修正）：修复回复评论时间戳早于原评论、并给 flush 修复补一个回归测试
+
+**背景**：Task 16 合入之后做的代码评审，实测发现了一个真实存在、可复现的 bug，以及一个测试覆盖缺口：
+
+1. **回复评论的时间戳可能早于被回复的原评论**——`HistoricalBackfillService` 生成回复时，用的是本次浏览事件自己的 `occurTime`（`randomTimeAfter(content.getPublishTime(), random)`，在内容发布后 30 天内随机），跟被回复的原评论是"什么时候创建的"完全无关。评审用真实回填数据复现了：`SELECT count(*) FROM comment r JOIN comment p ON r.parent_comment_id = p.id WHERE r.create_time < p.create_time` 查出确实存在"回复"的时间比"原评论"还早的记录。这会破坏时间线相关的功能（设计文档里"活跃时间轴"要按时间顺序画出发帖/评论/登录事件），同一个问题也存在于"给评论点赞"这个分支——点赞事件用的还是外层的 `occurTime`，同样可能早于被点赞的评论本身的创建时间。
+2. **Task 16 修的那个 flush 顺序 bug，现在没有任何自动化测试会在它被意外改回去时报错**——评审把 `CommentRepository.deleteReplies()` 的 `@Modifying(flushAutomatically = true, clearAutomatically = true)` 临时改回裸 `@Modifying`，重新跑 `HistoricalBackfillServiceIT` 照样全绿，因为这个 IT 测试当前的随机种子/数据规模凑巧没有生成"点赞指向一条回复评论"这种组合数据，触发不了那个外键冲突。需要一个不依赖随机数、直接在 repository 层面复现这个场景的确定性测试。
+
+**Files:**
+- Modify: `backend/src/main/java/com/jiaxian/analytics/simulator/HistoricalBackfillService.java`
+- Modify: `backend/src/test/java/com/jiaxian/analytics/simulator/HistoricalBackfillServiceIT.java`
+
+- [ ] **Step 1: 修复 `HistoricalBackfillService` 里回复评论和评论点赞的时间戳**
+
+把文件里这一段（评论/回复/评论点赞的分支）：
+
+```java
+                if (random.nextDouble() < 0.08) {
+                    Comment comment;
+                    if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
+                        Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
+                        comment = eventGenerator.generateComment(
+                            content.getId(), parent.getId(), viewer.getId(), occurTime, config.getBatchId());
+                    } else {
+                        comment = eventGenerator.generateComment(
+                            content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                        topLevelComments.add(comment);
+                    }
+                    if (random.nextDouble() < 0.3) {
+                        var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
+                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), occurTime, config.getBatchId());
+                    }
+                }
+```
+
+改成：
+
+```java
+                if (random.nextDouble() < 0.08) {
+                    Comment comment;
+                    if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
+                        Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
+                        LocalDateTime replyTime = randomTimeAfter(parent.getCreateTime(), random);
+                        comment = eventGenerator.generateComment(
+                            content.getId(), parent.getId(), viewer.getId(), replyTime, config.getBatchId());
+                    } else {
+                        comment = eventGenerator.generateComment(
+                            content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                        topLevelComments.add(comment);
+                    }
+                    if (random.nextDouble() < 0.3) {
+                        var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
+                        LocalDateTime likeTime = randomTimeAfter(comment.getCreateTime(), random);
+                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), likeTime, config.getBatchId());
+                    }
+                }
+```
+
+**说明**：两处都改成"以被操作对象自己的创建时间为基准往后随机偏移"（复用已有的 `randomTimeAfter` 私有方法，不需要新写一个）——回复一定发生在原评论之后，点赞一定发生在被点赞的评论（不管是原评论还是回复）创建之后。原来的实现是"这次浏览事件的时间"跟"评论/回复/点赞分别发生的时间"混用同一个变量，逻辑上是错的，只是巧合地大多数时候两者差不太多、不容易被发现。
+
+- [ ] **Step 2: 给 Task 16 的 flush 修复补一个确定性回归测试**
+
+在 `HistoricalBackfillServiceIT` 里追加以下内容。先在类顶部追加需要的 `@Autowired` 字段（放在已有字段旁边即可）：
+
+```java
+    @Autowired private ChannelRepository channelRepository;
+    @Autowired private AccountRepository accountRepository;
+    @Autowired private CommentRepository commentRepository;
+    @Autowired private EngagementLogRepository engagementLogRepository;
+```
+
+再追加这个测试方法：
+
+```java
+    @Test
+    void deletingReplyCommentsAfterEngagementLogClearedDoesNotViolateForeignKey() {
+        Employee author = employeeRepository.save(
+            Employee.builder().name("FK测试作者").simulationBatchId("fk-regression-test").build());
+        Channel channel = channelRepository.findAll().get(0);
+        Account account = accountRepository.save(Account.builder().name("FK测试账号")
+            .type(AccountType.PERSONAL).simulationBatchId("fk-regression-test").build());
+        Content content = contentRepository.save(Content.builder().type(ContentType.ARTICLE)
+            .channelId(channel.getId()).accountId(account.getId()).publishTime(LocalDateTime.now())
+            .popularityWeight(0.5).simulationBatchId("fk-regression-test").build());
+
+        Comment topLevel = commentRepository.save(Comment.builder().contentId(content.getId())
+            .employeeId(author.getId()).createTime(LocalDateTime.now())
+            .simulationBatchId("fk-regression-test").build());
+        Comment reply = commentRepository.save(Comment.builder().contentId(content.getId())
+            .employeeId(author.getId()).parentCommentId(topLevel.getId())
+            .createTime(LocalDateTime.now()).simulationBatchId("fk-regression-test").build());
+
+        engagementLogRepository.save(EngagementLog.builder().commentId(reply.getId())
+            .actorEmployeeId(author.getId()).actionType(EngagementActionType.LIKE)
+            .occurTime(LocalDateTime.now()).simulationBatchId("fk-regression-test").build());
+
+        // 复刻 clearPreviousSimulationData() 里真实的调用顺序：先删 engagement_log（逐条实体删除，
+        // 删除动作先排进持久化上下文），再删 comment 里的回复（批量 JPQL delete）。如果
+        // CommentRepository.deleteReplies() 的 flushAutomatically/clearAutomatically 被意外去掉，
+        // 这里会在批量 delete 时报 engagement_log_comment_id_fkey 外键冲突。
+        engagementLogRepository.deleteAll();
+        commentRepository.deleteReplies();
+        commentRepository.deleteAll();
+
+        assertThat(commentRepository.findById(topLevel.getId())).isEmpty();
+        assertThat(commentRepository.findById(reply.getId())).isEmpty();
+    }
+```
+
+同时在文件顶部 import 区加入（若已用通配符 import 覆盖则跳过对应行）：
+
+```java
+import com.jiaxian.analytics.domain.Account;
+import com.jiaxian.analytics.domain.AccountType;
+import com.jiaxian.analytics.domain.Channel;
+import com.jiaxian.analytics.domain.Comment;
+import com.jiaxian.analytics.domain.EngagementActionType;
+import com.jiaxian.analytics.domain.EngagementLog;
+```
+
+- [ ] **Step 3: 运行验证**
+
+Run: `cd backend && mvn test -Dtest=HistoricalBackfillServiceIT`
+Expected: PASS（2 个测试：Task 13 原有的 1 个 + 本次新增的 1 个）。
+
+用下面这个命令验证新测试确实是"能测出问题"的（不是摆设）——临时把 `CommentRepository.deleteReplies()` 的 `@Modifying(flushAutomatically = true, clearAutomatically = true)` 改回裸 `@Modifying`，重新跑：
+
+Run: `cd backend && mvn test -Dtest=HistoricalBackfillServiceIT`
+Expected: 新增的 `deletingReplyCommentsAfterEngagementLogClearedDoesNotViolateForeignKey` 这个测试FAIL，报外键冲突。确认完之后把 `CommentRepository.java` 改回来（`git checkout -- backend/src/main/java/com/jiaxian/analytics/repository/CommentRepository.java`），再跑一次确认恢复成PASS。
+
+Run: `cd backend && mvn test`（全量跑一次，确认没有回归）
+Expected: 全部通过（16个测试）。
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add backend/src/main/java/com/jiaxian/analytics/simulator/HistoricalBackfillService.java \
+        backend/src/test/java/com/jiaxian/analytics/simulator/HistoricalBackfillServiceIT.java
+git commit -m "fix: order reply/comment-like timestamps after their target, add FK regression test"
+```
