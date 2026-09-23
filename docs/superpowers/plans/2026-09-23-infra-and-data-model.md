@@ -113,6 +113,10 @@ JiaxianOp/
 6. **`schema.sql`/`data.sql` 建的表实际落在 `jiaxian_app` schema 里，不是 `public`**——openGauss 用 `GS_USERNAME` 创建新用户时会连带自动建一个同名 schema（`jiaxian_app`），而 `search_path` 默认是 `"$user",public`，所以 `jiaxian_app` 用户建表时优先落进 `jiaxian_app` schema。这不影响任何功能（应用自己一直用 `jiaxian_app` 连接，读写都在同一个 schema，Hibernate 的 `ddl-auto: validate` 也一样能找到表），纯粹是人工用 `gsql` 排查时的一个坑：如果用 `opengauss` 超级用户登录后直接 `\dt`，看不到任何表（因为它的 `search_path` 是 `opengauss,public`，两边都没有这些表），必须先 `SET search_path TO jiaxian_app;` 或者直接用 `jiaxian_app` 账号登录查看（本计划所有验证命令已经统一用 `jiaxian_app` 登录，见上一条）。
 7. **Task 4/Task 6 的集成测试原本用真实频道名/积分行为名做测试夹具，和 Task 7 的种子数据撞车**——Task 7 的 `data.sql` 在 `spring.sql.init.mode: always` 下每次应用启动都会真的把 15 个频道和 15 条积分权重配置插进数据库（不是测试专属的临时数据）。`DimensionRepositoryIT` 原来建了一个名为"半导体"的频道、`FactAndPointsRepositoryIT` 原来建了一个名为"移动无线"的频道、还往 `points_weight_config` 插了一条 `action_type='LIKE', effective_date=2026-01-01` 的记录——这三个值都跟 Task 7 的真实种子数据完全撞上了 `UNIQUE` 约束，导致跑完整个 `mvn test`（而不是单独 `-Dtest=` 某一个类）时这两个集成测试会报 `duplicate key value violates unique constraint`。这是 Task 9 验证"跑全量测试"时才暴露出来的——单独跑每个任务自己的测试类时不会触发，因为当时数据库里还没有 Task 7 的种子数据。**修正**：把这两个测试里的频道名改成 `测试频道-维度测试`、`测试频道-事实积分测试`，`action_type` 从 `LIKE` 改成 `TEST_LIKE`，避开真实种子数据的名字空间。已验证连续跑两次 `mvn test`（不带 `-Dtest`）都是 `BUILD SUCCESS`。**以后任何任务写涉及 `channel.name` 或 `points_weight_config(action_type, effective_date)` 的测试夹具，都不能用 Task 7 种子数据里的真实值**（15 个频道名见 Task 7；15 个 action_type 见同一任务），得用明显是测试专用的名字。
 8. **Task 15 验证时发现本机 8080 端口被一个跟本项目无关的服务占用**——`lsof -i :8080` 显示是一个已经在跑的 Python 进程（疑似 Open WebUI），不是本项目产生的。`backend/src/main/resources/application.yml` 的 `server.port: 8080` 保持不变（这是常规默认值，换到别的机器/环境不一定有这个冲突，没必要为了本机的偶发占用改掉计划里已经过评审的配置）。**这只是这台开发机当前的本地环境状态，不是代码缺陷**：如果在这台机器上跑 `cd backend && mvn spring-boot:run` 遇到端口绑定失败，要么先停掉占用 8080 的那个进程，要么临时用 `mvn spring-boot:run -Dspring-boot.run.arguments=--server.port=8081` 换个端口跑（同时相应调整 `frontend/vite.config.ts` 的代理目标）。
+9. **全部 15 个任务做完后的整体复查（跨任务视角，不是单个任务的评审能发现的问题）发现三处需要收尾修正**：
+   - **数据库密码原来是硬编码的，违反了设计文档 §9 明确写的"配置通过 `application.yml`+环境变量管理，不硬编码"要求**——`application.yml` 的 `url`/`username`/`password` 改成 `${DB_URL:jdbc:postgresql://localhost:5432/postgres}`、`${DB_USERNAME:jiaxian_app}`、`${DB_PASSWORD:Jiaxian@2026}` 这种"环境变量优先、有默认值兜底"的写法；`docker-compose.yml` 的 `GS_PASSWORD`/`GS_USERNAME` 同理改成 `"${GS_PASSWORD:-Jiaxian@2026}"`/`"${GS_USERNAME:-jiaxian_app}"`。默认值不变，本地不设置任何环境变量时行为完全一样，已验证 `mvn test`（14个测试）和 `docker compose config` 都正常。
+   - **`docker-compose.yml` 顺手删掉了过时的 `version: "3.8"` 字段**（`docker compose` 一直在警告这个字段已废弃），纯格式清理，不影响功能。
+   - **历史模拟器从未真正生成"发帖"（POST，100分）主动积分、也从未生成二级回复评论（导致 `COMMENT_REPLIED` 积分永远产生不了）**——这两处是复查时发现的真实功能缺口，不是文档问题，已作为 Task 13 的后续修正单独处理（见下方"Task 13 后续修正"小节）。
 
 ---
 
@@ -3020,3 +3024,204 @@ git commit -m "feat: bootstrap Vue3+TS frontend with backend health check page"
 3. 调用 `POST /api/admin/simulator/backfill`（body 参考 Task 14 测试用例）后，能在数据库里查到对应数量的员工/账号/内容，以及非零的 `pv_log`/`points_ledger` 记录，且积分权重与设计文档第 3.3 节完全一致。
 4. 前端页面能访问并显示后端健康状态。
 5. 本计划范围内没有引入 Kafka 生产/消费逻辑、汇总表、排行榜、RFM 分层——这些留给后续计划。
+
+---
+
+## Task 16（收尾修正）：让历史回填真正覆盖"发帖"和"二级回复"这两种行为
+
+**背景**：15 个任务全部完成后做了一次跨任务的整体复查（不是任何单个任务自己的评审能发现的问题——每个任务的评审只看自己那部分代码/测试，看不到"整个系统跑起来之后哪些确认过的行为其实从没被真正触发过"）。复查发现：
+
+1. `EntityGenerator` 直接 `contentRepository.save(...)` 生成内容，从来没有调用任何"发帖"主动积分的记账逻辑——设计文档确认的权重表里权重最高的主动行为（发帖 100 分）在模拟器里完全不可达，`points_ledger` 里永远不会出现 `action_type='POST'` 的记录。
+2. `HistoricalBackfillService` 调用 `generateComment` 时 `parentCommentId` 永远传 `null`——`BehaviorEventGenerator.generateComment` 对二级回复的支持在 Task 11 的单元测试里验证得很充分，但历史回填这条实际数据生成路径从来没有真正生成过一条回复，`comment.parent_comment_id` 永远是 `NULL`，`COMMENT_REPLIED` 积分永远不会产生。这不只是"少测了一个场景"——设计文档明确要求模拟器"评论支持二级回复"（真实感设计的一部分），这个要求实际上没有被满足。
+3. 上面第 2 点一旦修好、真的会生成回复评论后，`HistoricalBackfillService.clearPreviousSimulationData()` 现在按 `commentRepository.deleteAll()` 一次性删除所有评论的写法就不安全了——`comment.parent_comment_id` 是表自引用外键，如果 `deleteAll()` 内部按 `findAll()` 返回的顺序（通常是主键升序，也就是"回复"的 id 比它引用的"原评论"的 id 更大）逐条删，先删到的很可能是没有回复引用它的原评论，但也可能先删到一条还被别的回复行引用着的原评论，导致外键约束报错。需要先删所有"是回复"的行（`parent_comment_id IS NOT NULL`），再删剩下的（此时都是没有回复引用的顶层评论）。
+
+**Files:**
+- Modify: `backend/src/main/java/com/jiaxian/analytics/simulator/BehaviorEventGenerator.java`
+- Modify: `backend/src/main/java/com/jiaxian/analytics/repository/CommentRepository.java`
+- Modify: `backend/src/main/java/com/jiaxian/analytics/simulator/HistoricalBackfillService.java`
+- Modify: `backend/src/test/java/com/jiaxian/analytics/simulator/BehaviorEventGeneratorTest.java`
+- Modify: `backend/src/test/java/com/jiaxian/analytics/simulator/HistoricalBackfillServiceIT.java`
+
+- [ ] **Step 1: 在 `BehaviorEventGeneratorTest` 追加一个失败的 `generatePost` 测试**
+
+在类里追加（放在已有测试方法之间即可）：
+
+```java
+    @Test
+    void postEventCreditsAuthorActivePointsOnly() {
+        Long contentId = 500L;
+        Long authorId = 60L;
+
+        when(pointsWeightConfigRepository.findFirstByActionTypeOrderByEffectiveDateDesc("POST"))
+            .thenReturn(java.util.Optional.of(PointsWeightConfig.builder()
+                .actionType("POST").category(PointsCategory.ACTIVE).weight(100)
+                .effectiveDate(LocalDate.of(2026, 1, 1)).build()));
+
+        BehaviorEventGenerator generator = new BehaviorEventGenerator(
+            pvLogRepository, engagementLogRepository, activeActionLogRepository,
+            contentAuthorRepository, pointsWeightConfigRepository, pointsLedgerRepository,
+            commentRepository, new Random(1));
+
+        generator.generatePost(contentId, authorId, LocalDateTime.now(), "test-batch");
+
+        verify(contentAuthorRepository, never()).findByContentId(any());
+
+        ArgumentCaptor<PointsLedger> captor = ArgumentCaptor.forClass(PointsLedger.class);
+        verify(pointsLedgerRepository, times(1)).save(captor.capture());
+        PointsLedger entry = captor.getValue();
+        assertThat(entry.getEmployeeId()).isEqualTo(authorId);
+        assertThat(entry.getCategory()).isEqualTo(PointsCategory.ACTIVE);
+        assertThat(entry.getPoints()).isEqualTo(100);
+        assertThat(entry.getActionType()).isEqualTo("POST");
+    }
+```
+
+- [ ] **Step 2: 运行测试确认失败**
+
+Run: `cd backend && mvn test -Dtest=BehaviorEventGeneratorTest`
+Expected: FAIL，编译错误（`generatePost` 方法尚不存在）。
+
+- [ ] **Step 3: 在 `BehaviorEventGenerator` 加入 `generatePost` 方法**
+
+放在 `generateView` 方法之前（作为第一个公开方法，因为"发帖"逻辑上先于"浏览/互动"）：
+
+```java
+    public void generatePost(Long contentId, Long authorId, LocalDateTime occurTime, String batchId) {
+        recordActive(authorId, ActiveActionType.POST, "POST", contentId, occurTime, batchId);
+    }
+```
+
+（"发帖"只有主动分、没有被动分对应——这跟 `generateLogin` 是同一种模式：只调用 `recordActive`，不调用 `creditContentAuthorsPassive`。不需要新增 import。）
+
+- [ ] **Step 4: 运行测试确认通过**
+
+Run: `cd backend && mvn test -Dtest=BehaviorEventGeneratorTest`
+Expected: PASS（5 个测试全部通过：Task 10/11 的 4 个 + 本次新增的 1 个）。
+
+- [ ] **Step 5: 给 `CommentRepository` 加一个"只删回复"的批量删除方法**
+
+```java
+package com.jiaxian.analytics.repository;
+
+import com.jiaxian.analytics.domain.Comment;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+    List<Comment> findByParentCommentId(Long parentCommentId);
+
+    // 自引用外键（parent_comment_id -> comment.id）不能直接 deleteAll()：JPA 按 findAll() 的顺序
+    // （通常主键升序，也就是"原评论"排在"回复"前面）逐条删，会在删到还被回复引用的原评论时报外键
+    // 约束错误。先用这条批量 DELETE 把所有"是回复"的行清掉，再对剩下的（此时都是无人引用的顶层
+    // 评论）调用普通的 deleteAll()，就不会有顺序问题。
+    @Modifying
+    @Query("DELETE FROM Comment c WHERE c.parentCommentId IS NOT NULL")
+    void deleteReplies();
+}
+```
+
+- [ ] **Step 6: 修改 `HistoricalBackfillService`**
+
+在文件顶部 import 区加入：
+
+```java
+import com.jiaxian.analytics.domain.Comment;
+import com.jiaxian.analytics.domain.ContentAuthor;
+
+import java.util.ArrayList;
+```
+
+（若已经有 `import com.jiaxian.analytics.domain.*;` 这种通配符 import 则跳过第一行；`Content` 单独 import 保留不动。）
+
+把 `clearPreviousSimulationData()` 里原来的
+
+```java
+        commentRepository.deleteAll();
+```
+
+改成两行：
+
+```java
+        commentRepository.deleteReplies();
+        commentRepository.deleteAll();
+```
+
+在 `for (Content content : entities.getContents())` 这个主循环**之前**，加一段给每篇内容的所有作者发放"发帖"积分的循环：
+
+```java
+        for (Content content : entities.getContents()) {
+            List<ContentAuthor> authors = contentAuthorRepository.findByContentId(content.getId());
+            for (ContentAuthor author : authors) {
+                eventGenerator.generatePost(content.getId(), author.getEmployeeId(),
+                    content.getPublishTime(), config.getBatchId());
+            }
+        }
+```
+
+（这段独立跑一遍所有内容，不要跟下面已有的"生成浏览/互动事件"那个大循环合并——发帖积分只在内容发布时发生一次，跟后续的浏览/互动事件是两件不同的事。）
+
+把已有的浏览/互动事件循环里，原来这一段：
+
+```java
+                if (random.nextDouble() < 0.08) {
+                    var comment = eventGenerator.generateComment(
+                        content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                    if (random.nextDouble() < 0.3) {
+                        var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
+                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), occurTime, config.getBatchId());
+                    }
+                }
+```
+
+改成（需要在外层 `for (Content content : entities.getContents())` 循环体的最开头，也就是 `int viewCount = ...` 那一行之前，加一行 `List<Comment> topLevelComments = new ArrayList<>();` 用来记录这篇内容已经产生的顶层评论，供后续抽样回复）：
+
+```java
+                if (random.nextDouble() < 0.08) {
+                    Comment comment;
+                    if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
+                        Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
+                        comment = eventGenerator.generateComment(
+                            content.getId(), parent.getId(), viewer.getId(), occurTime, config.getBatchId());
+                    } else {
+                        comment = eventGenerator.generateComment(
+                            content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                        topLevelComments.add(comment);
+                    }
+                    if (random.nextDouble() < 0.3) {
+                        var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
+                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), occurTime, config.getBatchId());
+                    }
+                }
+```
+
+**只把已有的顶层评论当回复目标**（`topLevelComments` 只在"新建顶层评论"那个分支里 `add`，回复产生的评论不会被加进去），这样保证最多两级（评论 + 一级回复），不会出现"回复的回复"。
+
+- [ ] **Step 7: 运行验证**
+
+前提：`docker-compose up -d opengauss`
+
+Run: `cd backend && mvn test -Dtest=HistoricalBackfillServiceIT`
+Expected: PASS。这个测试本身的断言不需要改（不強制断言一定有 POST/回复，因为随机性），但可以手工用下面的方式再确认一次效果：
+
+Run: `cd backend && mvn spring-boot:run`（后台跑，然后用 `curl` 调一次 `/api/admin/simulator/backfill`，body 参考 Task 14 的测试请求体，把 `contentCount` 调到 50 左右保证样本量），再用
+```
+docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql -h 127.0.0.1 -U jiaxian_app -d postgres -W "Jiaxian@2026" -c "SELECT count(*) FROM points_ledger WHERE action_type='POST'; SELECT count(*) FROM comment WHERE parent_comment_id IS NOT NULL;"
+```
+Expected: 两个 `count` 都大于 0（发帖积分历史上第一次真正产生；二级回复历史上第一次真正生成）。跑完后记得停掉后台的 `mvn spring-boot:run` 进程。
+
+Run: `cd backend && mvn test`（全量跑一次，确认没有回归）
+Expected: 全部通过。
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/src/main/java/com/jiaxian/analytics/simulator/BehaviorEventGenerator.java \
+        backend/src/main/java/com/jiaxian/analytics/repository/CommentRepository.java \
+        backend/src/main/java/com/jiaxian/analytics/simulator/HistoricalBackfillService.java \
+        backend/src/test/java/com/jiaxian/analytics/simulator/BehaviorEventGeneratorTest.java \
+        backend/src/test/java/com/jiaxian/analytics/simulator/HistoricalBackfillServiceIT.java
+git commit -m "fix: generate POST points and second-level comment replies in backfill"
+```

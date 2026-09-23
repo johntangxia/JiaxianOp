@@ -1,12 +1,10 @@
-version: "3.8"
-
 services:
   opengauss:
     image: opengauss/opengauss:5.0.0
     container_name: jiaxian-opengauss
     environment:
-      GS_PASSWORD: "Jiaxian@2026"
-      GS_USERNAME: "jiaxian_app"
+      GS_PASSWORD: "${GS_PASSWORD:-Jiaxian@2026}"
+      GS_USERNAME: "${GS_USERNAME:-jiaxian_app}"
     ports:
       - "5432:5432"
     volumes:
