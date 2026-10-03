@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface PointsLedgerRepository extends JpaRepository<PointsLedger, Long> {
     List<PointsLedger> findByEmployeeId(Long employeeId);
+
+    List<PointsLedger> findBySimulationBatchId(String simulationBatchId);
 }

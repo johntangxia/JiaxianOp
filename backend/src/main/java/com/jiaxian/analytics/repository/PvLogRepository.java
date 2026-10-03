@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface PvLogRepository extends JpaRepository<PvLog, Long> {
     List<PvLog> findByContentId(Long contentId);
+
+    long countBySimulationBatchId(String simulationBatchId);
 }
