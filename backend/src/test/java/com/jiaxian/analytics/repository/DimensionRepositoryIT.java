@@ -68,5 +68,8 @@ class DimensionRepositoryIT {
         assertThat(contentAuthorRepository.findByContentId(content.getId())).hasSize(2);
         assertThat(accountMemberRepository.findByAccountId(teamAccount.getId())).hasSize(2);
         assertThat(commentRepository.findByParentCommentId(rootComment.getId())).containsExactly(reply);
+        assertThat(commentRepository.findByContentId(content.getId()))
+            .extracting(Comment::getId)
+            .containsExactlyInAnyOrder(rootComment.getId(), reply.getId());
     }
 }

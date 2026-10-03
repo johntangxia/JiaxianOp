@@ -10,6 +10,8 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByParentCommentId(Long parentCommentId);
 
+    List<Comment> findByContentId(Long contentId);
+
     // 自引用外键（parent_comment_id -> comment.id）不能直接 deleteAll()：JPA 按 findAll() 的顺序
     // （通常主键升序，也就是"原评论"排在"回复"前面）逐条删，会在删到还被回复引用的原评论时报外键
     // 约束错误。先用这条批量 DELETE 把所有"是回复"的行清掉，再对剩下的（此时都是无人引用的顶层
