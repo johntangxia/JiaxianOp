@@ -949,6 +949,8 @@ const route = useRoute();
 
 - [ ] **Step 3: 构建验证**
 
+在 `frontend/tsconfig.json` 的 `compilerOptions` 里加 `"skipLibCheck": true`（Element Plus 的类型声明在加入自动导入的 `components.d.ts` 后会让 `vue-tsc` 对库文件报 `GlobalComponents` 类型错误，跳过库文件检查是这类项目的标配）。
+
 Run: `cd frontend && npm run build`
 Expected: `vue-tsc` 无报错，`vite build` 成功，生成 `src/components.d.ts` 和 `src/auto-imports.d.ts`。
 
@@ -1043,7 +1045,7 @@ describe("getJson", () => {
   it("hides the body of 5xx responses behind a generic message", async () => {
     stubFetch(new Response('{"trace":"secret internals"}', { status: 500 }));
 
-    const error = await getJson("/api/x").catch((e) => e);
+    const error = (await getJson("/api/x").catch((e: unknown) => e)) as ApiError;
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error.message).toBe("服务器内部错误（500）");
@@ -1116,7 +1118,10 @@ describe("defaultRange", () => {
     expect(defaultRange("DAY", DATA)).toEqual({ from: "2026-02-26", to: "2026-03-27" });      // 30 天
     expect(defaultRange("WEEK", DATA)).toEqual({ from: "2025-10-03", to: "2026-03-27" });     // 26 周
     expect(defaultRange("MONTH", DATA)).toEqual({ from: "2025-04-01", to: "2026-03-27" });    // 12 个月
-    expect(defaultRange("YEAR", DATA)).toEqual({ from: "2022-01-01", to: "2026-03-27" });     // 5 年
+    // 年：5 年 = 2022-01-01，但数据从 2025-01-01 才开始，所以被截断
+    expect(defaultRange("YEAR", DATA)).toEqual({ from: "2025-01-01", to: "2026-03-27" });
+    expect(defaultRange("YEAR", { from: "2020-01-01", to: "2026-03-27" }))
+      .toEqual({ from: "2022-01-01", to: "2026-03-27" });
   });
 
   it("never starts before the first day with data", () => {
