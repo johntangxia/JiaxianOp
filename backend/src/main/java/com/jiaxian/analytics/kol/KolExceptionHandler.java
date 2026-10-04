@@ -9,8 +9,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/** 只作用于 KOL 接口：参数问题 400，文案不存在 404，文案键冲突 409，响应体是一句说明原因的文字。 */
-@RestControllerAdvice(assignableTypes = {BloggerController.class, KolAdminController.class, PlaybookController.class})
+/** 只作用于 KOL 接口：参数问题 400，文案或员工不存在 404，文案键冲突 409，响应体是一句说明原因的文字。 */
+@RestControllerAdvice(assignableTypes = {BloggerController.class, KolAdminController.class,
+    PlaybookController.class, BloggerProfileController.class})
 public class KolExceptionHandler {
 
     @ExceptionHandler(InvalidKolQueryException.class)
@@ -35,6 +36,11 @@ public class KolExceptionHandler {
 
     @ExceptionHandler(PlaybookNotFoundException.class)
     public ResponseEntity<String> notFound(PlaybookNotFoundException e) {
+        return text(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(EmployeeNotFoundException.class)
+    public ResponseEntity<String> employeeNotFound(EmployeeNotFoundException e) {
         return text(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
