@@ -46,3 +46,14 @@ realtime:
 
 server:
   port: 8080
+
+analytics:
+  kol:
+    top-n: 1000
+    window-days: 90
+    recent-days: 30
+    baseline-days: 90
+    churn-drop-threshold: 0.5
+    rebuild-cron: "0 0 1 * * MON"
+    schedule:
+      enabled: true
