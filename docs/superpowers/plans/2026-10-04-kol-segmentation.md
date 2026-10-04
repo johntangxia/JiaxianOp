@@ -588,7 +588,7 @@ class SegmentClassifierTest {
         assertThat(classify(4, 1, 1, false, null, true)).isEqualTo(Segment.RISING);
         assertThat(classify(5, 2, 1, false, null, false)).isEqualTo(Segment.OBSERVE);   // 趋势没有上升
         assertThat(classify(3, 2, 1, false, null, true)).isEqualTo(Segment.OBSERVE);    // R 不够高
-        assertThat(classify(5, 3, 1, false, null, true)).isEqualTo(Segment.OBSERVE);    // F 不够低
+        assertThat(classify(5, 3, 1, false, null, true)).isEqualTo(Segment.STEADY);     // F 不够低 → 不是新人；平均分 3.0 → 稳定贡献者
     }
 
     @Test
