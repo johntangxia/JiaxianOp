@@ -1,7 +1,7 @@
 # 积分引擎 + Kafka 实时流水线 · 设计方案
 
 - 日期：2026-09-23
-- 状态：已通过讨论确认，待转入实施计划
+- 状态：已实现（实施计划见 [Kafka 实时流水线](../plans/2026-10-04-kafka-realtime-pipeline.md)）
 - 前置依赖：[基础设施与数据模型](2026-09-23-community-analytics-design.md) 已完成（见 `docs/superpowers/plans/2026-09-23-infra-and-data-model.md`），本设计建立在其已有的数据模型、JPA 实体/仓储、积分引擎（`BehaviorEventGenerator`）和历史批量回填模拟器之上。
 
 ## 1. 背景与目标

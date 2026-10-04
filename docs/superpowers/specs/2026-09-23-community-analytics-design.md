@@ -1,7 +1,7 @@
 # 稼先社区运营数据分析与积分KOL管理系统 · 设计方案
 
 - 日期：2026-09-23
-- 状态：已通过讨论确认，待转入实施计划
+- 状态：已实现（按各子设计和实施计划分阶段落地，运行方式和文档索引见根目录 [README](../../../README.md)）
 
 ## 1. 背景与目标
 
@@ -88,6 +88,8 @@
 | `churn_alert` | employee_id, alert_date, recent_metric, baseline_metric, drop_rate, status | 流失预警记录 |
 | `action_playbook` | segment_label, alert_status, recommendation_text | 分层×预警状态 → 建议文案，后台可维护 |
 
+> 实现时的取舍（见 [PV 分析设计](2026-10-04-pv-analytics-design.md)）：`pv_summary_daily` 实际粒度是 (`content_id`, `summary_date`)，频道、账号、博主、内容类型这些维度都不预聚合，查询时通过 JOIN `content`（和 `content_author`）得到，所以任意维度的任意交叉筛选都不需要额外建表；汇总表可以随时重算（幂等），定时任务每天把最近几天补进来。
+
 > 实现时的取舍（见 [榜单设计](2026-10-04-leaderboard-design.md)）：不建 `points_summary_monthly/yearly`，当期榜单查询时直接对 `points_ledger` 区间求和，`leaderboard_snapshot` 里同时带主动/被动拆分；`rank` 列实际命名为 `rank_no`（`rank` 是保留字）。
 
 ### 3.5 Redis 缓存 key 设计（示例）
@@ -111,6 +113,8 @@
 **多维PV分析**：支持按频道、账号、博主（员工）、内容类型（文章/视频）等维度，任意时间粒度（日/周/月/年）切片与交叉筛选。
 
 **同比/环比/预测**：环比=(本期-上期)/上期；同比=(本期-去年同期)/去年同期；预测值=最近N期移动平均（日粒度7天/周粒度4周/月粒度3月）叠加最近环比增长率线性外推，附带基于历史波动率的置信区间，看板用虚线区分预测段与历史实际。
+
+> 实现时的取舍（见 [PV 分析设计](2026-10-04-pv-analytics-design.md) 第 5.4 节）：预测改用"移动平均 + 移动平均自身的漂移"（`ma + slope × k`），而不是"叠加最近环比增长率"——环比增长率在数据量小或波动大时很不稳定；置信区间是预测值 ± 最近 N 个已完成周期的样本标准差，对所有预测期用同一个 σ；还没结束的周期（今天、本周、本月、今年）照常显示但不参与预测。分桶、补零、同环比和预测全部在 Java 里完成，数据库只负责按天取数。
 
 **排行榜计算（区间制有效积分，非累计）**：
 - 定时任务按周期（月/年）对 `points_ledger` 做 `SUM(points) GROUP BY employee_id WHERE occur_time BETWEEN period_start AND period_end`，写入 `leaderboard_snapshot`，历史每期快照永久保留。
@@ -159,13 +163,36 @@
 
 ## 7. API 设计
 
-- `GET /api/analytics/pv` — 多维PV查询（维度+粒度+环比同比+预测）
-- `GET /api/leaderboard/{month|year}` — 月榜/年榜（进行中实时榜单+历史归档）
-- `GET /api/bloggers/{id}/profile` — 个人博主详情
-- `GET /api/bloggers/top1000` — TOP1000分层列表（按分层标签/预警状态筛选）
-- `POST /api/admin/simulator/*` — 模拟器控制（回填参数配置、实时模拟启停/调速）
-- `CRUD /api/admin/points-config` — 积分权重配置管理
-- `CRUD /api/admin/playbook` — 建议文案库维护
+下面是实际实现的接口（参数、响应和错误处理见各子设计文档）。参数非法统一返回 400 + 一句说明原因的文字，对象不存在 404，冲突 409。所有 `/api/admin/**` 接口没有鉴权（见第 10 节的范围说明），必须部署在内网。
+
+**分析与查询**
+
+| 接口 | 说明 |
+|---|---|
+| `GET /api/analytics/pv/trend` | PV 趋势：粒度（日/周/月/年）、日期范围、频道/账号/博主/内容类型过滤、环比、同比、预测与置信区间 |
+| `GET /api/analytics/pv/top` | PV Top N：按频道/账号/博主/内容类型 |
+| `GET /api/leaderboard/{month\|year}` | 月榜/年榜：进行中的周期实时计算，已结束的读快照（缺快照时回退实时计算） |
+| `GET /api/leaderboard/{month\|year}/periods` | 榜单周期选择器的数据（有流水的周期 + 当前周期） |
+| `GET /api/bloggers/top1000` | KOL 分层名单：按分层/预警筛选、分页，附建议文案和各分层人数 |
+| `GET /api/bloggers/runs` | KOL 已有的重算统计日 |
+| `GET /api/bloggers/{id}/profile` | 博主详情：当前分层、RFM 历史、标签变化点、最近事件 |
+| `GET /api/bloggers/{id}/activity` | 博主活跃时间轴（发帖/评论/登录次数分布） |
+| `GET /api/bloggers/{id}/points-trend` | 博主积分构成趋势（主动/被动） |
+| `GET /api/dimensions/channels`、`/accounts`、`/employees` | 筛选与选择器用的频道、账号、员工选项（账号和员工支持关键字搜索） |
+| `GET /api/meta/pv-range` | PV 汇总表里有数据的日期范围 |
+| `GET /api/health` | 健康检查 |
+
+**管理**
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/admin/simulator/backfill` | 历史回填（会清空全部模拟数据及其派生数据） |
+| `POST /api/admin/simulator/realtime/start`、`/stop`；`GET .../realtime/status` | 实时模拟的启停与状态 |
+| `POST /api/admin/analytics/pv/rebuild` | 重算 PV 汇总（可选日期范围） |
+| `POST /api/admin/analytics/leaderboard/snapshot` | 重算榜单快照（全部已结束周期，或指定一期） |
+| `POST /api/admin/analytics/kol/rebuild` | 重算 KOL 分层（统计日 + 周数，可补历史） |
+| `GET/PUT /api/admin/points-config`、`DELETE .../points-config/versions/{id}` | 积分权重：按生效日期版本化，修改只影响之后新产生的事件 |
+| `GET/POST /api/admin/playbook`、`PUT/DELETE .../playbook/{id}` | 建议文案库维护 |
 
 ## 8. 前端页面结构（Vue3+TS，管理员/运营内部使用）
 
