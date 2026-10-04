@@ -736,9 +736,10 @@ public class BloggerProfileRepository {
         return jdbc.query("SELECT occur_time, action_type, ref_id FROM active_action_log"
                 + " WHERE employee_id = ? AND action_type IN ('POST', 'COMMENT', 'LOGIN')"
                 + " ORDER BY occur_time DESC, id DESC LIMIT " + limit, (rs, rowNum) -> {
+            // wasNull() 反映最后读取的那一列，所以读完 ref_id 要立刻判断，不能放到别的列之后
             long refId = rs.getLong(3);
-            return new RecentEvent(rs.getTimestamp(1).toLocalDateTime(), rs.getString(2),
-                rs.wasNull() ? null : refId);
+            Long nullableRefId = rs.wasNull() ? null : refId;
+            return new RecentEvent(rs.getTimestamp(1).toLocalDateTime(), rs.getString(2), nullableRefId);
         }, employeeId);
     }
 
