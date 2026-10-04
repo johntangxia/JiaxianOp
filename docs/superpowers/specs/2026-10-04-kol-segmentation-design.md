@@ -1,7 +1,7 @@
 # KOL 分层与流失预警 · 设计方案
 
 - 日期：2026-10-04
-- 状态：已通过讨论确认
+- 状态：已实现（实施计划见 [KOL 分层与流失预警](../plans/2026-10-04-kol-segmentation.md)）
 - 前置依赖：[基础设施与数据模型](2026-09-23-community-analytics-design.md)（`active_action_log`、`points_ledger`）、[PV 多维度聚合](2026-10-04-pv-analytics-design.md)（复用 `Clock` Bean 和 JdbcTemplate/Timestamp 约定）、[积分排行榜](2026-10-04-leaderboard-design.md)。
 - 后续：个人博主详情页接口（活跃时间轴、积分构成趋势、RFM 历史轨迹）放到下一份计划（Plan 6），本阶段保留的每周 RFM 历史就是为它准备的。
 
