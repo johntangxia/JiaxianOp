@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, getJson } from "./http";
+import { ApiError, getJson, sendJson } from "./http";
 
 function stubFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);
@@ -45,5 +45,47 @@ describe("getJson", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error.message).toBe("服务器内部错误（500）");
     expect(error.message).not.toContain("secret");
+  });
+});
+
+describe("sendJson", () => {
+  it("sends a JSON body with the right header and parses a JSON response", async () => {
+    const fetchMock = stubFetch(new Response(JSON.stringify({ id: 7 }), { status: 200 }));
+
+    const result = await sendJson<{ id: number }>("PUT", "/api/x/LIKE", { params: { a: 1 }, body: { weight: 4 } });
+
+    expect(result).toEqual({ id: 7 });
+    expect(fetchMock).toHaveBeenCalledWith("/api/x/LIKE?a=1", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: '{"weight":4}',
+    });
+  });
+
+  it("returns a plain-text response as a string", async () => {
+    stubFetch(new Response("Backfill completed for batch: demo", { status: 200 }));
+
+    expect(await sendJson<string>("POST", "/api/admin/simulator/backfill", { body: {} })).toBe(
+      "Backfill completed for batch: demo",
+    );
+  });
+
+  it("returns undefined for an empty response and sends no body for DELETE", async () => {
+    const fetchMock = stubFetch(new Response(null, { status: 204 }));
+
+    expect(await sendJson<void>("DELETE", "/api/x/versions/3")).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/x/versions/3", { method: "DELETE" });
+  });
+
+  it("turns error responses into an ApiError", async () => {
+    stubFetch(new Response("A playbook entry for STAR_KOL / NO_ALERT already exists", { status: 409 }));
+
+    await expect(sendJson("POST", "/api/admin/playbook", { body: {} })).rejects.toMatchObject({
+      status: 409,
+      message: "A playbook entry for STAR_KOL / NO_ALERT already exists",
+    });
+
+    stubFetch(new Response("boom", { status: 502 }));
+    await expect(sendJson("POST", "/api/x")).rejects.toMatchObject({ message: "服务器内部错误（502）" });
   });
 });
