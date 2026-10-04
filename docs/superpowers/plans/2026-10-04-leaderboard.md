@@ -1482,6 +1482,18 @@ class LeaderboardEndToEndIT {
         return totals;
     }
 
+    /** 只保留已结束的周期（下一周期起点不晚于今天）。 */
+    private Map<String, Long> endedOnly(PeriodType type, Map<String, Long> byPeriod) {
+        LocalDate today = LocalDate.now();
+        Map<String, Long> ended = new TreeMap<>();
+        byPeriod.forEach((period, total) -> {
+            if (!type.nextStart(type.parse(period)).isAfter(today)) {
+                ended.put(period, total);
+            }
+        });
+        return ended;
+    }
+
     @Test
     void snapshotsAgreeWithTheLedgerAndTheLiveBoard() {
         backfill();
@@ -1492,13 +1504,15 @@ class LeaderboardEndToEndIT {
         assertThat(rebuild.getBody().get("months").asInt()).isGreaterThan(0);
         assertThat(rebuild.getBody().get("years").asInt()).isGreaterThan(0);
 
-        // 回填的流水最晚到 2026-03-31，早于今天：所有月/年都已结束，快照总和必须等于流水里同周期的总和
+        // 已结束周期的快照总和必须等于流水里同周期的总和（进行中的周期，比如当前这一年，按设计不落快照）
         assertThat(totals("SELECT period_value, SUM(points) FROM leaderboard_snapshot"
             + " WHERE period_type = 'MONTH' GROUP BY period_value"))
-            .isEqualTo(totals("SELECT to_char(occur_time, 'YYYY-MM'), SUM(points) FROM points_ledger GROUP BY 1"));
+            .isEqualTo(endedOnly(PeriodType.MONTH,
+                totals("SELECT to_char(occur_time, 'YYYY-MM'), SUM(points) FROM points_ledger GROUP BY 1")));
         assertThat(totals("SELECT period_value, SUM(points) FROM leaderboard_snapshot"
             + " WHERE period_type = 'YEAR' GROUP BY period_value"))
-            .isEqualTo(totals("SELECT to_char(occur_time, 'YYYY'), SUM(points) FROM points_ledger GROUP BY 1"));
+            .isEqualTo(endedOnly(PeriodType.YEAR,
+                totals("SELECT to_char(occur_time, 'YYYY'), SUM(points) FROM points_ledger GROUP BY 1")));
 
         // 取快照人数最多的那个月：HTTP 返回的是快照，并且和实时榜逐行一致
         String busiestMonth = jdbc.queryForObject(
@@ -1543,6 +1557,7 @@ Expected: `Tests run: 1, Failures: 0, Errors: 0`
 失败时的排查顺序：
 1. 月/年总和对不上：检查流水里是否有今天及以后的记录（回填后其他测试残留的实时事件）；`points_ledger` 的 `to_char(occur_time, 'YYYY-MM')` 在 A 兼容模式下是否返回预期格式。
 2. `source` 不是 `SNAPSHOT`：确认 `busiestMonth` 已结束（早于本月）。
+3. 年度对比里出现"多出的当前年份"：当前年份进行中、不落快照，对比前必须用 `endedOnly` 过滤。
 
 - [ ] **Step 3: 完整测试并提交**
 
