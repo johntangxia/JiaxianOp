@@ -1323,6 +1323,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -1493,10 +1494,11 @@ class PvDailyQueryRepositoryIT {
 
     @Test
     void topRejectsLimitOutsideSafeRange() {
+        // @Repository 的异常转换会把 IllegalArgumentException 包成 InvalidDataAccessApiUsageException
         assertThatThrownBy(() -> repository.top(PvDimension.CHANNEL, FROM, TO, PvFilter.NONE, 0))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(InvalidDataAccessApiUsageException.class).hasMessageContaining("limit");
         assertThatThrownBy(() -> repository.top(PvDimension.CHANNEL, FROM, TO, PvFilter.NONE, 101))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(InvalidDataAccessApiUsageException.class).hasMessageContaining("limit");
     }
 }
 ```
