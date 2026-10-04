@@ -16,7 +16,7 @@
 
 后端沿用 Plan 3~6 的约定（日期参数绑定 `Timestamp`、`LIMIT` 用校验过的字面量、集成测试连真实 OpenGauss 且优先 `@Transactional`、夹具用 2019 年和中文名前缀、每个后端任务后跑完整 `cd backend && mvn test`）。与本计划直接相关的新增约定：
 
-1. **前端版本**：现有 `vite@5`，所以测试框架固定 `vitest@^2.1.9`（`vitest@5` 需要 `vite ≥ 6`，会冲突）。
+1. **前端版本**：现有 `vite@5`，所以测试框架固定 `vitest@^2.1.9`（`vitest@5` 需要 `vite ≥ 6`，会冲突），路由固定 `vue-router@4`（`vue-router@5` 的可选依赖要求 `vite ≥ 7`，npm 会报 ERESOLVE）。
 2. **每个前端任务完成后都要通过**：`cd frontend && npm test` 和 `cd frontend && npm run build`（后者包含 `vue-tsc` 类型检查）。
 3. **自动导入生成的 `src/components.d.ts`、`src/auto-imports.d.ts` 必须提交**，否则干净克隆上 `vue-tsc` 会因找不到组件类型而失败。
 4. **日期一律用本地时间的 `yyyy-MM-dd` 字符串**（`utils/dateRange.ts` 里的 `toIsoDate` / `parseIsoDate`），不要用 `toISOString()`（会转成 UTC，在东八区会差一天）。
@@ -681,7 +681,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ```bash
 cd frontend
-npm install vue-router element-plus echarts
+npm install vue-router@4 element-plus echarts
 npm install -D vitest@^2.1.9 unplugin-auto-import unplugin-vue-components
 ```
 
@@ -953,7 +953,7 @@ Run: `cd frontend && npm run build`
 Expected: `vue-tsc` 无报错，`vite build` 成功，生成 `src/components.d.ts` 和 `src/auto-imports.d.ts`。
 
 Run: `cd frontend && npm test`
-Expected: 此时没有测试文件，`vitest run` 会以"No test files found"退出码 1。给 `package.json` 的 test 脚本加 `--passWithNoTests`：`"test": "vitest run --passWithNoTests"`，重新运行，Expected: 退出码 0。
+Expected: 此时没有测试文件，`vitest run` 会以"No test files found"退出码 1，所以 test 脚本写成 `"test": "vitest run --passWithNoTests"`，重新运行，Expected: 退出码 0。
 
 - [ ] **Step 4: 提交**
 
