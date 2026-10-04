@@ -19,7 +19,7 @@
 1. **后端**：日期参数绑定 `Timestamp`、读取走 `getTimestamp`；`LIMIT` 用校验过的字面量；集成测试连真实 OpenGauss 且优先 `@Transactional`；每个后端任务后跑完整 `cd backend && mvn test`。测试类名不要与已有测试同名（`-Dtest=` 会一起匹配）。
 2. **前端**：每个任务完成后都要通过 `cd frontend && npm test` 和 `cd frontend && npm run build`（后者含 `vue-tsc`）；自动生成的 `src/components.d.ts`、`src/auto-imports.d.ts` 要一起提交；日期一律用本地 `yyyy-MM-dd` 字符串（`utils/dateRange.ts`），不要用 `toISOString()`。
 3. **Element Plus 的 `el-select` 把空字符串值当成"未选择"**，需要"全部/无"选项时用哨兵值。
-4. **`ElMessage` / `ElMessageBox` 由 `unplugin-auto-import` 的 Element Plus 解析器自动导入**，不要手写 import；类型在 `auto-imports.d.ts` 里。
+4. **`ElMessage` / `ElMessageBox` 由 `unplugin-auto-import` 的 Element Plus 解析器自动导入**，不要手写 import（手写会丢掉消息框的样式）。它们的类型只有在 `vite build`/`vite dev` 经过自动导入插件后才会写进 `src/auto-imports.d.ts`，而 `npm run build` 先跑 `vue-tsc`，所以**第一次用到 `ElMessage` 的任务里要先单独跑一次 `npx vite build`** 重新生成 `auto-imports.d.ts`，然后把它提交（之后 `npm run build` 就能通过）。`el-table` 插槽里的 `row` 是通用行类型，传给函数时在模板里断言，如 `openEdit(row as PlaybookEntry)`。
 5. **`v-model` 绑在 `el-input-number` 上时**，它发出的值类型是 `number | undefined`，如果 `vue-tsc` 对"把 `number | undefined` 赋给 `number`"报错，把对应字段类型改成 `number | undefined` 并在使用处用 `?? 默认值`，不要用 `as` 硬转。
 6. 手工验证：后端 `--server.port=8093`，前端 `VITE_API_TARGET=http://localhost:8093 npm run dev`；用完关闭两个进程并确认端口释放。如果 Colima 停了，先 `colima start` 并等 OpenGauss/Kafka 就绪。
 7. **回填会清空所有模拟数据**（员工、内容、行为、流水），派生的汇总/快照/KOL 结果靠外键级联一起清空；回填后要重新运行数据任务。回填的浏览行为会延续到发布后 30 天，所以 `historyEnd` 要早于今天至少 30 天。
@@ -2765,8 +2765,8 @@ async function remove(entry: PlaybookEntry): Promise<void> {
           <el-table-column prop="recommendationText" label="建议文案" min-width="360" />
           <el-table-column label="操作" width="140" align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-              <el-button link type="danger" @click="remove(row)">删除</el-button>
+              <el-button link type="primary" @click="openEdit(row as PlaybookEntry)">编辑</el-button>
+              <el-button link type="danger" @click="remove(row as PlaybookEntry)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -2904,7 +2904,7 @@ async function removeVersion(item: PointsConfigItem, id: number, weightValue: nu
                           link
                           type="danger"
                           :disabled="row.versions.length <= 1"
-                          @click="removeVersion(row, version.id, version.weight, version.effectiveDate)"
+                          @click="removeVersion(row as PointsConfigItem, version.id, version.weight, version.effectiveDate)"
                         >删除</el-button>
                       </span>
                     </el-tooltip>
@@ -2930,7 +2930,7 @@ async function removeVersion(item: PointsConfigItem, id: number, weightValue: nu
           </el-table-column>
           <el-table-column label="操作" width="100" align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openEdit(row)">修改</el-button>
+              <el-button link type="primary" @click="openEdit(row as PointsConfigItem)">修改</el-button>
             </template>
           </el-table-column>
         </el-table>
