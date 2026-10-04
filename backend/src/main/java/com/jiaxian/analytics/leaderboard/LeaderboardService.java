@@ -4,7 +4,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.TreeSet;
 
 /** 校验参数并选择数据来源：进行中实时算；已结束读快照；已结束但没有快照回退实时算。 */
 @Service
@@ -43,5 +45,17 @@ public class LeaderboardService {
         }
         List<LeaderboardEntry> entries = repository.live(start, nextStart, limit);
         return new Leaderboard(type, value, Leaderboard.Status.ARCHIVED, Leaderboard.Source.LIVE, entries);
+    }
+
+    /** 所有有积分流水的周期，再加上当前周期（即使还没有流水），按时间倒序。 */
+    public List<PeriodOption> periods(PeriodType type) {
+        LocalDate today = LocalDate.now(clock);
+        TreeSet<LocalDate> starts = new TreeSet<>(Comparator.reverseOrder());
+        starts.addAll(repository.periodsWithLedger(type));
+        starts.add(type.containing(today));
+        return starts.stream()
+            .map(start -> new PeriodOption(type.format(start),
+                type.nextStart(start).isAfter(today) ? Leaderboard.Status.IN_PROGRESS : Leaderboard.Status.ARCHIVED))
+            .toList();
     }
 }

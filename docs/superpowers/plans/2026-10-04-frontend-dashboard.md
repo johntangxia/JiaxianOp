@@ -53,7 +53,7 @@
 | `src/views/LeaderboardView.vue` | 排行榜 |
 | `src/router/index.ts`、`src/styles/theme.css`、`src/App.vue`、`src/main.ts` | 骨架 |
 
-测试：前端 `src/**/*.test.ts`；后端 `DimensionRepositoryIT`、`DimensionControllerIT`、`LeaderboardServiceTest`（追加）、`LeaderboardControllerIT`（追加）。
+测试：前端 `src/**/*.test.ts`；后端 `DimensionOptionsRepositoryIT`、`DimensionControllerIT`、`LeaderboardServiceTest`（追加）、`LeaderboardControllerIT`（追加）。
 
 ---
 
@@ -61,12 +61,12 @@
 
 **Files:**
 - Create: `backend/src/main/java/com/jiaxian/analytics/dimension/{ChannelOption,AccountOption,EmployeeOption,PvRange,InvalidDimensionQueryException,DimensionRepository,DimensionService,DimensionController,DimensionExceptionHandler}.java`
-- Test: `backend/src/test/java/com/jiaxian/analytics/dimension/DimensionRepositoryIT.java`
+- Test: `backend/src/test/java/com/jiaxian/analytics/dimension/DimensionOptionsRepositoryIT.java`
 - Test: `backend/src/test/java/com/jiaxian/analytics/dimension/DimensionControllerIT.java`
 
 - [ ] **Step 1: 写测试**
 
-`backend/src/test/java/com/jiaxian/analytics/dimension/DimensionRepositoryIT.java`：
+`backend/src/test/java/com/jiaxian/analytics/dimension/DimensionOptionsRepositoryIT.java`：
 
 ```java
 package com.jiaxian.analytics.dimension;
@@ -96,7 +96,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Transactional
-class DimensionRepositoryIT {
+class DimensionOptionsRepositoryIT {
 
     @Autowired private DimensionRepository repository;
     @Autowired private ChannelRepository channelRepository;
@@ -268,7 +268,7 @@ class DimensionControllerIT {
 
 - [ ] **Step 2: 运行，确认失败**
 
-Run: `cd backend && mvn test -Dtest='DimensionRepositoryIT,DimensionControllerIT'`
+Run: `cd backend && mvn test -Dtest='DimensionOptionsRepositoryIT,DimensionControllerIT'`
 Expected: 编译失败。
 
 - [ ] **Step 3: 写实现**
@@ -528,8 +528,8 @@ public class DimensionExceptionHandler {
 
 - [ ] **Step 4: 运行，确认通过**
 
-Run: `cd backend && mvn test -Dtest='DimensionRepositoryIT,DimensionControllerIT'`
-Expected: `DimensionRepositoryIT` 6 个、`DimensionControllerIT` 4 个，全部通过。
+Run: `cd backend && mvn test -Dtest='DimensionOptionsRepositoryIT,DimensionControllerIT'`
+Expected: `DimensionOptionsRepositoryIT` 6 个、`DimensionControllerIT` 4 个，全部通过。
 
 如果 `ESCAPE '!'` 或 `LOWER(name) LIKE` 在 OpenGauss 上报语法错误，用 gsql 直接试那条 SQL（`SELECT id FROM account WHERE LOWER(name) LIKE '%a!_b%' ESCAPE '!'`），改成等价写法并在提交说明里写清楚。
 

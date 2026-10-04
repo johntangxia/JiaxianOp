@@ -90,4 +90,30 @@ class LeaderboardServiceTest {
         assertThatThrownBy(() -> service.leaderboard(PeriodType.MONTH, "2026-09", 101))
             .isInstanceOf(InvalidLeaderboardQueryException.class).hasMessageContaining("limit");
     }
+
+    // ---- periods ----
+
+    @Test
+    void periodsListsLedgerPeriodsPlusTheCurrentOneNewestFirst() {
+        when(repository.periodsWithLedger(PeriodType.MONTH))
+            .thenReturn(List.of(d(2026, 1, 1), d(2026, 2, 1), d(2026, 10, 1)));
+
+        assertThat(service.periods(PeriodType.MONTH)).containsExactly(
+            new PeriodOption("2026-10", Leaderboard.Status.IN_PROGRESS),
+            new PeriodOption("2026-02", Leaderboard.Status.ARCHIVED),
+            new PeriodOption("2026-01", Leaderboard.Status.ARCHIVED));
+    }
+
+    @Test
+    void periodsAlwaysIncludeTheCurrentPeriodEvenWithoutLedgerRows() {
+        when(repository.periodsWithLedger(PeriodType.MONTH)).thenReturn(List.of(d(2026, 1, 1)));
+        when(repository.periodsWithLedger(PeriodType.YEAR)).thenReturn(List.of(d(2025, 1, 1)));
+
+        assertThat(service.periods(PeriodType.MONTH)).containsExactly(
+            new PeriodOption("2026-10", Leaderboard.Status.IN_PROGRESS),
+            new PeriodOption("2026-01", Leaderboard.Status.ARCHIVED));
+        assertThat(service.periods(PeriodType.YEAR)).containsExactly(
+            new PeriodOption("2026", Leaderboard.Status.IN_PROGRESS),
+            new PeriodOption("2025", Leaderboard.Status.ARCHIVED));
+    }
 }

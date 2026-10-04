@@ -102,4 +102,21 @@ class LeaderboardControllerIT {
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         assertThat(response.getBody()).contains(expectedMessagePart);
     }
+
+    @Test
+    void periodsEndpointStartsWithTheCurrentPeriodInProgress() {
+        ResponseEntity<JsonNode> response = rest.getForEntity(url("/api/leaderboard/month/periods"), JsonNode.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody().isArray()).isTrue();
+        JsonNode first = response.getBody().get(0);
+        assertThat(first.get("periodValue").asText())
+            .isEqualTo(PeriodType.MONTH.format(PeriodType.MONTH.containing(LocalDate.now())));
+        assertThat(first.get("status").asText()).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void periodsEndpointRejectsAnUnknownType() {
+        assertGetBadRequest("/api/leaderboard/week/periods", "month");
+    }
 }

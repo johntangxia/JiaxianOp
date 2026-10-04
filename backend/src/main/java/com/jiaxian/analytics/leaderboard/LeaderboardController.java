@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/leaderboard")
 public class LeaderboardController {
@@ -25,5 +27,11 @@ public class LeaderboardController {
                                    @RequestParam(required = false) String period,
                                    @RequestParam(defaultValue = "50") int limit) {
         return service.leaderboard(PeriodType.fromPath(type), period, limit);
+    }
+
+    /** 周期选择器的数据：所有有流水的周期加当前周期，按时间倒序。type 只接受小写 month / year。 */
+    @GetMapping("/{type}/periods")
+    public List<PeriodOption> periods(@PathVariable String type) {
+        return service.periods(PeriodType.fromPath(type));
     }
 }
