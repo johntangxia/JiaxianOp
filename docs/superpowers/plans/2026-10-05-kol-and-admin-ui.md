@@ -944,6 +944,7 @@ import {
   buildRealtimeBody,
   defaultBackfillForm,
   defaultRealtimeForm,
+  kolAsOfFromPvEnd,
   validateBackfillForm,
 } from "./simulatorForms";
 
@@ -995,6 +996,14 @@ describe("request bodies", () => {
       .toEqual({ intervalMillis: 500, eventsPerBatch: 3 });
     expect(buildRealtimeBody({ batchId: " live ", intervalMillis: 500, eventsPerBatch: 3 }))
       .toEqual({ batchId: "live", intervalMillis: 500, eventsPerBatch: 3 });
+  });
+});
+
+describe("kolAsOfFromPvEnd", () => {
+  it("goes back 30 days from the last PV day, across month boundaries", () => {
+    expect(kolAsOfFromPvEnd("2026-09-20")).toBe("2026-08-21");
+    expect(kolAsOfFromPvEnd("2026-03-05")).toBe("2026-02-03");
+    expect(kolAsOfFromPvEnd("2026-01-10")).toBe("2025-12-11");
   });
 });
 ```
@@ -1566,7 +1575,7 @@ export function alertStatusLabel(status: "NO_ALERT" | "ALERT"): string {
 
 ```ts
 import type { BackfillRequest, RealtimeRequest } from "../api/types";
-import { toIsoDate } from "./dateRange";
+import { parseIsoDate, toIsoDate } from "./dateRange";
 
 export type BackfillForm = BackfillRequest;
 
@@ -1641,6 +1650,17 @@ export function buildRealtimeBody(form: RealtimeForm): RealtimeRequest {
     intervalMillis: form.intervalMillis,
     eventsPerBatch: form.eventsPerBatch,
   };
+}
+
+/**
+ * 一键重算时 KOL 的统计日：PV 数据最后一天往前 30 天。
+ * 回填的浏览行为会延续到内容发布后 30 天，所以 PV 数据的最后一天比模拟的"现在"（历史结束日）晚约一个月；
+ * 直接以它为统计日，刚刚还活跃的人会因为"最近一个月没有登录"被误判为流失。
+ */
+export function kolAsOfFromPvEnd(pvEnd: string): string {
+  const date = parseIsoDate(pvEnd);
+  date.setDate(date.getDate() - 30);
+  return toIsoDate(date);
 }
 ```
 
@@ -3169,6 +3189,7 @@ import { reactive, ref } from "vue";
 import { fetchPvRange } from "../../api/analytics";
 import { rebuildPv, snapshotAllLeaderboards } from "../../api/admin";
 import { rebuildKol } from "../../api/kol";
+import { kolAsOfFromPvEnd } from "../../utils/simulatorForms";
 
 type Status = "pending" | "running" | "done" | "error";
 interface Step {
@@ -3280,9 +3301,10 @@ async function runAll(): Promise<void> {
       return `写入 ${result.rowsWritten} 行汇总`;
     });
     await runStep(1, runSnapshot);
-    // 模拟数据是历史的：以今天为统计日所有人都会变成沉寂，所以统计日取 PV 数据的最后一天
+    // 模拟数据是历史的：以今天为统计日所有人都会变成沉寂；而 PV 数据的最后一天又比模拟的"现在"晚约 30 天
+    // （回填的浏览行为会延续到发布后 30 天），所以统计日取它往前 30 天
     const range = await fetchPvRange().catch(() => null);
-    await runStep(2, () => runKol(range?.to ?? undefined, 12));
+    await runStep(2, () => runKol(range?.to ? kolAsOfFromPvEnd(range.to) : undefined, 12));
   } catch {
     // 失败的那一步已经记录了原因，后面的步骤不再执行
   } finally {
@@ -3307,7 +3329,7 @@ const stepText = { pending: "等待", running: "进行中", done: "完成", erro
 
     <div class="all">
       <el-button type="primary" :loading="allBusy" @click="runAll">一键重算全部</el-button>
-      <span class="muted">按"PV 汇总 → 榜单快照 → KOL 重算（统计日取 PV 数据的最后一天，12 周）"顺序执行</span>
+      <span class="muted">按"PV 汇总 → 榜单快照 → KOL 重算（统计日取 PV 数据最后一天往前 30 天，12 周）"顺序执行</span>
     </div>
     <ul v-if="steps.length > 0" class="steps">
       <li v-for="step in steps" :key="step.name">

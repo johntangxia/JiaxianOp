@@ -1,6 +1,6 @@
 # 稼先社区运营分析看板（前端）
 
-Vue 3 + TypeScript + Vite + Element Plus + ECharts。目前包含：总览看板（PV 趋势、环比同比、预测、Top N）和积分排行榜（月榜/年榜）。
+Vue 3 + TypeScript + Vite + Element Plus + ECharts。目前包含：总览看板（PV 趋势、环比同比、预测、Top N）、积分排行榜（月榜/年榜）、KOL 管理（名单 + 博主详情）、系统管理（数据模拟器、积分权重、建议文案库）。
 
 ## 开发
 
@@ -21,7 +21,7 @@ npm run build    # vue-tsc 类型检查 + 生产构建（输出到 dist/）
 
 ## 演示数据
 
-看板需要后端有数据。启动后端后依次调用：
+看板需要后端有数据。最省事的办法是在页面里：系统管理 → 数据模拟器 → "清空并回填"，完成后点"一键重算全部"。也可以启动后端后手动依次调用：
 
 ```bash
 curl -X POST localhost:8080/api/admin/simulator/backfill -H 'Content-Type: application/json' \
@@ -38,7 +38,7 @@ src/utils       纯逻辑：格式化、日期范围、指标卡、明细表行
 src/charts      ECharts 配置生成函数（纯函数）
 src/composables useAsync（加载/错误/过期响应）
 src/components  公共组件（图表、异步区块、远程搜索下拉）
-src/views       页面
+src/views       页面（总览、排行榜、kol/ 名单与详情、admin/ 模拟器、权重、文案库）
 ```
 
 `src/components.d.ts` 和 `src/auto-imports.d.ts` 由 `unplugin-*` 自动生成，需要提交到仓库。

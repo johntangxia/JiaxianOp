@@ -1,5 +1,5 @@
 import type { BackfillRequest, RealtimeRequest } from "../api/types";
-import { toIsoDate } from "./dateRange";
+import { parseIsoDate, toIsoDate } from "./dateRange";
 
 export type BackfillForm = BackfillRequest;
 
@@ -74,4 +74,15 @@ export function buildRealtimeBody(form: RealtimeForm): RealtimeRequest {
     intervalMillis: form.intervalMillis,
     eventsPerBatch: form.eventsPerBatch,
   };
+}
+
+/**
+ * 一键重算时 KOL 的统计日：PV 数据最后一天往前 30 天。
+ * 回填的浏览行为会延续到内容发布后 30 天，所以 PV 数据的最后一天比模拟的"现在"（历史结束日）晚约一个月；
+ * 直接以它为统计日，刚刚还活跃的人会因为"最近一个月没有登录"被误判为流失。
+ */
+export function kolAsOfFromPvEnd(pvEnd: string): string {
+  const date = parseIsoDate(pvEnd);
+  date.setDate(date.getDate() - 30);
+  return toIsoDate(date);
 }

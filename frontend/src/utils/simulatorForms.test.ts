@@ -4,6 +4,7 @@ import {
   buildRealtimeBody,
   defaultBackfillForm,
   defaultRealtimeForm,
+  kolAsOfFromPvEnd,
   validateBackfillForm,
 } from "./simulatorForms";
 
@@ -55,5 +56,13 @@ describe("request bodies", () => {
       .toEqual({ intervalMillis: 500, eventsPerBatch: 3 });
     expect(buildRealtimeBody({ batchId: " live ", intervalMillis: 500, eventsPerBatch: 3 }))
       .toEqual({ batchId: "live", intervalMillis: 500, eventsPerBatch: 3 });
+  });
+});
+
+describe("kolAsOfFromPvEnd", () => {
+  it("goes back 30 days from the last PV day, across month boundaries", () => {
+    expect(kolAsOfFromPvEnd("2026-09-20")).toBe("2026-08-21");
+    expect(kolAsOfFromPvEnd("2026-03-05")).toBe("2026-02-03");
+    expect(kolAsOfFromPvEnd("2026-01-10")).toBe("2025-12-11");
   });
 });
