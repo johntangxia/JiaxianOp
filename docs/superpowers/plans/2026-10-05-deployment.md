@@ -21,7 +21,7 @@
 5. **Kafka 的 bitnami 镜像里的脚本在 `/opt/bitnami/kafka/bin/`**；OpenGauss 的 `gsql` 在 `/usr/local/opengauss/bin/`，需要设置 `LD_LIBRARY_PATH=/usr/local/opengauss/lib`；OpenGauss 的初始超级用户 `opengauss` 不能远程登录，应用用的是 `GS_USERNAME` 创建的 `jiaxian_app`。
 6. **时区**：后端用系统默认时区取"今天"、写时间戳，容器默认是 UTC，会和浏览器所在时区差几个小时，所以后端容器要设置 `TZ`（默认 `Asia/Shanghai`）。
 7. **Nginx 反向代理要用 Docker 内置 DNS（`resolver 127.0.0.11`）和变量形式的 `proxy_pass`**，否则后端容器重启换了 IP 后 Nginx 还在用旧地址。
-8. **`docker compose build` 需要联网**拉基础镜像和 Maven/npm 依赖；后端用 BuildKit 缓存挂载保存 `~/.m2`。
+8. **`docker compose build` 需要联网**拉基础镜像和 Maven/npm 依赖。本机的 Docker 没有装 buildx，BuildKit 构建会报 `buildx component is missing`，所以 Dockerfile 不使用 BuildKit 专属特性（缓存挂载、`# syntax` 指令），并且构建时设置 `DOCKER_BUILDKIT=0 COMPOSE_BAKE=false`（compose 默认会走 bake/buildx）使用经典构建器；依赖单独成层，`pom.xml`/`package.json` 没变时从缓存复用。
 9. 脚本需要可执行权限（`chmod +x scripts/*.sh`）。
 10. `.env` 不提交（加进 `.gitignore`）；`.env.example` 提交。
 
@@ -153,16 +153,15 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 `backend/Dockerfile`：
 
 ```dockerfile
-# syntax=docker/dockerfile:1
-
-# ---- 构建阶段：Maven 打包（跳过测试，测试需要真实的数据库、Redis 和 Kafka） ----
+# 构建阶段：Maven 打包（跳过测试，测试需要真实的数据库、Redis 和 Kafka）
+# 不使用 BuildKit 专属特性（缓存挂载、# syntax 指令），这样没有装 buildx 的环境也能用经典构建器构建。
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /build
 COPY pom.xml .
-# 依赖单独一层并用缓存挂载保存 ~/.m2，源码改动时不用重新下载
-RUN --mount=type=cache,target=/root/.m2 mvn -q -B dependency:go-offline
+# 依赖单独一层：只要 pom.xml 没变，源码改动时这一层来自缓存，不用重新下载
+RUN mvn -q -B dependency:go-offline
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -q -B -DskipTests package \
+RUN mvn -q -B -DskipTests package \
     && cp target/*.jar /build/app.jar
 
 # ---- 运行阶段 ----
@@ -190,7 +189,7 @@ target/
 
 - [ ] **Step 2: 构建镜像**
 
-Run: `cd backend && DOCKER_BUILDKIT=1 docker build -t jiaxian-backend:local . 2>&1 | tail -15`
+Run: `cd backend && DOCKER_BUILDKIT=0 docker build -t jiaxian-backend:local . 2>&1 | tail -15`
 Expected: 构建成功，最后一行类似 `naming to docker.io/library/jiaxian-backend:local`。首次构建要下载 Maven 依赖，可能要几分钟。
 
 如果 `cp target/*.jar` 报错（匹配到多个文件），说明 `target/` 里除了可执行 jar 还有别的 `.jar`：改成 `cp target/analytics-*.jar /build/app.jar` 并在提交说明里写明。
@@ -221,8 +220,6 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 `frontend/Dockerfile`：
 
 ```dockerfile
-# syntax=docker/dockerfile:1
-
 # ---- 构建阶段：vue-tsc 类型检查 + vite build ----
 FROM node:22-alpine AS build
 WORKDIR /build
@@ -298,7 +295,7 @@ dist/
 - [ ] **Step 2: 构建镜像并单独验证 Nginx 配置与静态资源**
 
 ```bash
-cd frontend && DOCKER_BUILDKIT=1 docker build -t jiaxian-web:local . 2>&1 | tail -8
+cd frontend && DOCKER_BUILDKIT=0 docker build -t jiaxian-web:local . 2>&1 | tail -8
 docker run --rm jiaxian-web:local nginx -t
 ```
 
@@ -482,7 +479,7 @@ TZ=Asia/Shanghai
 ```bash
 docker compose config --quiet && echo "compose 配置有效"
 docker compose --profile app config --services
-docker compose --profile app up -d --build
+DOCKER_BUILDKIT=0 COMPOSE_BAKE=false docker compose --profile app up -d --build
 for i in $(seq 1 60); do
   unhealthy=$(docker compose --profile app ps --format '{{.Name}} {{.Health}}' | grep -v healthy || true)
   [ -z "$unhealthy" ] && break
