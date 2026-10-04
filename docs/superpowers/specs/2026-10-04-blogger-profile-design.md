@@ -1,7 +1,7 @@
 # 个人博主详情页接口 · 设计方案
 
 - 日期：2026-10-04
-- 状态：已通过讨论确认
+- 状态：已实现（实施计划见 [个人博主详情页接口](../plans/2026-10-04-blogger-profile.md)）
 - 前置依赖：[KOL 分层与流失预警](2026-10-04-kol-segmentation-design.md)（每周保留的 `blogger_rfm_score`、`churn_alert`、建议文案库）、[PV 多维度聚合](2026-10-04-pv-analytics-design.md)（复用 `Granularity` 枚举、`Clock` Bean 和"SQL 按天取数、Java 分桶补零"的做法）。
 
 ## 1. 背景与目标
