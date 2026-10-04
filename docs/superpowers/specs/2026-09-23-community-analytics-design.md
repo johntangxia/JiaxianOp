@@ -88,11 +88,15 @@
 | `churn_alert` | employee_id, alert_date, recent_metric, baseline_metric, drop_rate, status | 流失预警记录 |
 | `action_playbook` | segment_label, alert_status, recommendation_text | 分层×预警状态 → 建议文案，后台可维护 |
 
+> 实现时的取舍（见 [榜单设计](2026-10-04-leaderboard-design.md)）：不建 `points_summary_monthly/yearly`，当期榜单查询时直接对 `points_ledger` 区间求和，`leaderboard_snapshot` 里同时带主动/被动拆分；`rank` 列实际命名为 `rank_no`（`rank` 是保留字）。
+
 ### 3.5 Redis 缓存 key 设计（示例）
 
 - `rt:pv:channel:{channel_id}:today` — 频道今日实时PV计数器
 - `leaderboard:month:{yyyyMM}` / `leaderboard:year:{yyyy}` — 当期排行榜（Sorted Set，实时更新+每日凌晨全量重算校准）
 - `dashboard:overview` — 看板首屏聚合数据缓存
+
+> 实现时的取舍：`leaderboard:month/year` Redis 实时榜未实现——榜单走"进行中实时求和 + 已结束读快照"，不改 Kafka 消费者。
 
 ## 4. 数据模拟器设计
 
