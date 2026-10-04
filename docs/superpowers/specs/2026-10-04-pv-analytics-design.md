@@ -28,12 +28,14 @@
 
 ```sql
 CREATE TABLE IF NOT EXISTS pv_summary_daily (
-    content_id   BIGINT NOT NULL REFERENCES content(id),
+    content_id   BIGINT NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     summary_date DATE NOT NULL,
     pv_count     BIGINT NOT NULL,
     PRIMARY KEY (content_id, summary_date)
 );
 ```
+
+`ON DELETE CASCADE` 是必需的：汇总表是派生数据，而 Plan 1 的 `HistoricalBackfillService.clearPreviousSimulationData()` 每次重跑都会 `deleteAll()` 全部内容；没有级联的话，一旦汇总表里有数据，再次回填就会撞外键约束。有了级联，内容被删时它的汇总行自动消失，回填逻辑不用改。
 
 - 粒度是"内容 × 天"，行数约等于内容数 × 活跃天数，规模很小。频道、账号、博主、内容类型这些维度都不预聚合，查询时通过 `JOIN content`（以及 `content_author`）实时汇总。
 - 不建 JPA 实体，读写全部用 `JdbcTemplate`。
@@ -60,7 +62,7 @@ CREATE TABLE IF NOT EXISTS pv_summary_daily (
 | `granularity` | `DAY` / `WEEK` / `MONTH` / `YEAR`，必填 |
 | `from`、`to` | 日期（`yyyy-MM-dd`），必填 |
 | `channelId`、`accountId`、`employeeId`、`contentType` | 过滤条件，全部可选，可任意组合（取交集），例如"半导体频道下视频类内容" |
-| `forecastPeriods` | 预测期数，默认 1，最大 12 |
+| `forecastPeriods` | 预测期数，默认 1，范围 0~12（0 表示不要预测） |
 
 响应：
 
@@ -96,7 +98,7 @@ CREATE TABLE IF NOT EXISTS pv_summary_daily (
 
 ### 5.4 预测
 设计文档原来写的是"移动平均叠加最近的环比增长率"。环比增长率在数据量小或波动大时很不稳定，所以改用"移动平均自身的漂移"，规则如下：
-- 窗口 `N`：DAY 7，WEEK 4，MONTH 3，YEAR 2。只使用 `complete=true` 的点，取最近 `N` 个。
+- 窗口 `N`：DAY 7，WEEK 4，MONTH 3，YEAR 2。只使用 `complete=true` 的点，取最近 `N` 个。这里的"点"指扩展后序列（包含为同比向前多取的那一年）里的已完成周期，不局限于请求范围，所以请求范围很短时也能给出预测。
 - `ma` = 这 `N` 个值的均值。
 - `slope = (ma − 再往前 N 个值的均值) / N`；已完成的点少于 `2N` 个时 `slope = 0`。
 - 第 `k` 期预测值 = `max(0, ma + slope × k)`，`k = 1..forecastPeriods`。预测从"最后一个已完成周期"的下一个周期开始，所以第 1 期可能正好是正在进行中的那个周期（"今天最终会收在多少"）。
