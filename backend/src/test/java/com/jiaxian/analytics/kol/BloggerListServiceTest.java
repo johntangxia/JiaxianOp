@@ -50,4 +50,12 @@ class BloggerListServiceTest {
         assertThat(list.asOf()).isEqualTo(latest);
         assertThat(list.segmentCounts()).hasSize(Segment.values().length);
     }
+
+    @Test
+    void runsDelegatesToTheRepository() {
+        List<LocalDate> dates = List.of(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 2, 22));
+        when(rfmRepository.runDates()).thenReturn(dates);
+
+        assertThat(service.runs()).isEqualTo(dates);
+    }
 }

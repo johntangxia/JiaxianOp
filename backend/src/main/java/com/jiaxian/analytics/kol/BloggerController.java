@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/bloggers")
@@ -30,5 +31,11 @@ public class BloggerController {
         @RequestParam(defaultValue = "50") int limit,
         @RequestParam(defaultValue = "0") int offset) {
         return service.list(asOf, segment, alert, limit, offset);
+    }
+
+    /** 已有重算记录的统计日（新的在前，最多 104 个）。 */
+    @GetMapping("/runs")
+    public List<LocalDate> runs() {
+        return service.runs();
     }
 }

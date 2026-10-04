@@ -22,6 +22,8 @@ public class KolRfmRepository {
     public record AlertRow(long employeeId, ChurnSignal signal) {
     }
 
+    private static final int MAX_RUNS = 104;
+
     private static final int[] SCORE_TYPES = {Types.TIMESTAMP, Types.BIGINT, Types.INTEGER, Types.BIGINT,
         Types.INTEGER, Types.INTEGER, Types.BIGINT, Types.INTEGER, Types.INTEGER, Types.INTEGER,
         Types.VARCHAR, Types.BOOLEAN};
@@ -82,5 +84,12 @@ public class KolRfmRepository {
 
     private static Timestamp ts(LocalDate date) {
         return Timestamp.valueOf(date.atStartOfDay());
+    }
+
+    /** 已有重算记录的统计日，新的在前，最多 MAX_RUNS 个。 */
+    public List<LocalDate> runDates() {
+        // LIMIT 用常量字面量（OpenGauss 不接受绑定参数形式的分页）
+        return jdbc.query("SELECT DISTINCT as_of_date FROM blogger_rfm_score ORDER BY as_of_date DESC LIMIT " + MAX_RUNS,
+            (rs, rowNum) -> rs.getTimestamp(1).toLocalDateTime().toLocalDate());
     }
 }

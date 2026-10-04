@@ -24,6 +24,11 @@ public class BloggerListService {
         this.playbookService = playbookService;
     }
 
+    /** 已有重算记录的统计日，新的在前，给名单页的统计日选择器用。 */
+    public List<LocalDate> runs() {
+        return rfmRepository.runDates();
+    }
+
     /** asOf 为 null 表示最近一次重算；segment / alert 为 null 表示不筛选。 */
     public BloggerList list(LocalDate asOf, Segment segment, Boolean alert, int limit, int offset) {
         if (limit < 1 || limit > MAX_LIMIT) {

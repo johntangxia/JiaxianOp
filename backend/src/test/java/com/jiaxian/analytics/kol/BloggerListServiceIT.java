@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,5 +112,15 @@ class BloggerListServiceIT {
             .isInstanceOf(InvalidKolQueryException.class).hasMessageContaining("limit");
         assertThatThrownBy(() -> service.list(AS_OF, null, null, 50, -1))
             .isInstanceOf(InvalidKolQueryException.class).hasMessageContaining("offset");
+    }
+
+    @Test
+    void runsListsTheRebuiltDatesNewestFirst() {
+        rebuildService.rebuild(AS_OF.minusDays(7));
+
+        List<LocalDate> runs = service.runs();
+
+        assertThat(runs).contains(AS_OF, AS_OF.minusDays(7));
+        assertThat(runs).isSortedAccordingTo(java.util.Comparator.reverseOrder());
     }
 }

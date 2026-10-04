@@ -137,4 +137,15 @@ class KolControllerIT {
             json("{\"segmentLabel\":\"OBSERVE\",\"alertStatus\":\"ALERT\",\"recommendationText\":\"x\"}"), String.class);
         assertThat(missing.getStatusCode().value()).isEqualTo(404);
     }
+
+    @Test
+    void runsEndpointReturnsAnArrayOfDates() {
+        ResponseEntity<JsonNode> response = rest.getForEntity(url("/api/bloggers/runs"), JsonNode.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody().isArray()).isTrue();
+        for (JsonNode date : response.getBody()) {
+            assertThat(date.asText()).matches("\\d{4}-\\d{2}-\\d{2}");
+        }
+    }
 }
