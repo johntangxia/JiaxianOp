@@ -16,8 +16,9 @@ const granularities: Array<{ value: Granularity; label: string }> = [
   { value: "YEAR", label: "年" },
 ];
 
-const contentTypes: Array<{ value: ContentType | ""; label: string }> = [
-  { value: "", label: "全部类型" },
+// el-select 会把空字符串当成"未选择"，所以"全部类型"用哨兵值 ALL
+const contentTypes: Array<{ value: ContentType | "ALL"; label: string }> = [
+  { value: "ALL", label: "全部类型" },
   { value: "ARTICLE", label: "文章" },
   { value: "VIDEO", label: "视频" },
 ];
@@ -44,8 +45,8 @@ function onChannel(value: number | undefined): void {
   patch({ channelId: value });
 }
 
-function onContentType(value: ContentType | ""): void {
-  patch({ contentType: value === "" ? undefined : value });
+function onContentType(value: ContentType | "ALL"): void {
+  patch({ contentType: value === "ALL" ? undefined : value });
 }
 
 function onForecast(value: number | undefined): void {
@@ -97,7 +98,7 @@ function onForecast(value: number | undefined): void {
     />
 
     <el-select
-      :model-value="modelValue.contentType ?? ''"
+      :model-value="modelValue.contentType ?? 'ALL'"
       style="width: 120px"
       @update:model-value="onContentType"
     >
