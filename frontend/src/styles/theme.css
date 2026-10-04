@@ -100,3 +100,41 @@ body {
 .rate-none {
   color: var(--color-text-muted);
 }
+
+.app-menu .el-sub-menu__title:hover {
+  background: #2a3858;
+}
+
+.app-menu .el-sub-menu .el-menu-item {
+  background: transparent;
+}
+
+.score-high {
+  background: #e6f6ec;
+  color: #1a7f46;
+}
+
+.score-mid {
+  background: #eef1f6;
+  color: #4b5563;
+}
+
+.score-low {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.score-chip {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  margin-right: 4px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.clickable-row {
+  cursor: pointer;
+}

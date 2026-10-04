@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { useRoute } from "vue-router";
 import HealthBadge from "./components/HealthBadge.vue";
 
 const route = useRoute();
+// 详情页高亮"KOL 管理"
+const activeMenu = computed(() => (route.path.startsWith("/kol") ? "/kol" : route.path));
 </script>
 
 <template>
@@ -11,9 +14,16 @@ const route = useRoute();
     <el-container class="app-shell">
       <el-aside width="200px" class="app-aside">
         <div class="brand">稼先社区<br /><small>运营分析看板</small></div>
-        <el-menu :default-active="route.path" router class="app-menu">
+        <el-menu :default-active="activeMenu" :default-openeds="['admin']" router class="app-menu">
           <el-menu-item index="/">总览看板</el-menu-item>
           <el-menu-item index="/leaderboard">积分排行榜</el-menu-item>
+          <el-menu-item index="/kol">KOL 管理</el-menu-item>
+          <el-sub-menu index="admin">
+            <template #title>系统管理</template>
+            <el-menu-item index="/admin/simulator">数据模拟器</el-menu-item>
+            <el-menu-item index="/admin/points-config">积分权重</el-menu-item>
+            <el-menu-item index="/admin/playbook">建议文案库</el-menu-item>
+          </el-sub-menu>
         </el-menu>
       </el-aside>
       <el-container>
