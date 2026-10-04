@@ -125,3 +125,10 @@ CREATE INDEX IF NOT EXISTS idx_engagement_log_comment ON engagement_log(comment_
 CREATE INDEX IF NOT EXISTS idx_active_action_log_employee ON active_action_log(employee_id);
 CREATE INDEX IF NOT EXISTS idx_editorial_pick_content ON editorial_pick_log(content_id);
 CREATE INDEX IF NOT EXISTS idx_points_ledger_employee_time ON points_ledger(employee_id, occur_time);
+
+CREATE TABLE IF NOT EXISTS pv_summary_daily (
+    content_id   BIGINT NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+    summary_date DATE NOT NULL,
+    pv_count     BIGINT NOT NULL,
+    PRIMARY KEY (content_id, summary_date)
+);
