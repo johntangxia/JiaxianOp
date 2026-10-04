@@ -132,3 +132,17 @@ CREATE TABLE IF NOT EXISTS pv_summary_daily (
     pv_count     BIGINT NOT NULL,
     PRIMARY KEY (content_id, summary_date)
 );
+
+CREATE TABLE IF NOT EXISTS leaderboard_snapshot (
+    period_type    VARCHAR(10) NOT NULL CHECK (period_type IN ('MONTH', 'YEAR')),
+    period_value   VARCHAR(10) NOT NULL,
+    rank_no        INT NOT NULL,
+    employee_id    BIGINT NOT NULL REFERENCES employee(id) ON DELETE CASCADE,
+    points         BIGINT NOT NULL,
+    active_points  BIGINT NOT NULL,
+    passive_points BIGINT NOT NULL,
+    PRIMARY KEY (period_type, period_value, employee_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_leaderboard_snapshot_rank
+    ON leaderboard_snapshot(period_type, period_value, rank_no);
