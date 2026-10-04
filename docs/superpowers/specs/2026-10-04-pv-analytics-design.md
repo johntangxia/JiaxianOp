@@ -1,7 +1,7 @@
 # PV 多维度聚合与预测 · 设计方案
 
 - 日期：2026-10-04
-- 状态：已通过讨论确认，待转入实施计划
+- 状态：已实现（实施计划见 [PV 多维度聚合与预测](../plans/2026-10-04-pv-analytics.md)）
 - 前置依赖：[基础设施与数据模型](2026-09-23-community-analytics-design.md)（Plan 1）和 [积分引擎 + Kafka 实时流水线](2026-09-23-points-engine-kafka-pipeline-design.md)（Plan 2）已完成。本设计建立在它们已经写入 `pv_log`（历史回填和实时事件两条路径都会写）的数据之上。
 
 ## 1. 背景与目标
