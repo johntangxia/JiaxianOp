@@ -11,6 +11,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AsyncBlock: typeof import('./components/AsyncBlock.vue')['default']
+    BaseChart: typeof import('./components/BaseChart.vue')['default']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElContainer: typeof import('element-plus/es')['ElContainer']
@@ -20,6 +22,7 @@ declare module 'vue' {
     ElMenuItem: typeof import('element-plus/es')['ElMenuItem']
     ElTag: typeof import('element-plus/es')['ElTag']
     HealthBadge: typeof import('./components/HealthBadge.vue')['default']
+    RemoteSelect: typeof import('./components/RemoteSelect.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }
