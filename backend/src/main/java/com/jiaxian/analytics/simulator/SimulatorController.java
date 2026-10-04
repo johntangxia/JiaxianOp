@@ -30,6 +30,7 @@ public class SimulatorController {
             .historyStart(request.getHistoryStart())
             .historyEnd(request.getHistoryEnd())
             .randomSeed(request.getRandomSeed())
+            .personas(request.isPersonas())
             .build();
 
         backfillService.runBackfill(config);
@@ -46,5 +47,6 @@ public class SimulatorController {
         private LocalDate historyStart;
         private LocalDate historyEnd;
         private long randomSeed;
+        private boolean personas;
     }
 }

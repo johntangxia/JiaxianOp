@@ -121,7 +121,21 @@ public class HistoricalBackfillService {
             }
         }
 
-        for (var employee : entities.getEmployees()) {
+        // 开启画像时，非 RANDOM 画像的员工用独立随机流规划登录；RANDOM 员工保持原有逻辑（沿用主随机流）。
+        var employees = entities.getEmployees();
+        List<BloggerPersona> personas = config.isPersonas()
+            ? PersonaAssigner.assign(employees.size(), config.getRandomSeed()) : null;
+        for (int employeeIndex = 0; employeeIndex < employees.size(); employeeIndex++) {
+            var employee = employees.get(employeeIndex);
+            BloggerPersona persona = personas == null ? BloggerPersona.RANDOM : personas.get(employeeIndex);
+            if (persona != BloggerPersona.RANDOM) {
+                Random personaRandom = new Random(config.getRandomSeed() * 1_000_003L + employeeIndex);
+                for (LocalDateTime loginTime : PersonaLoginPlanner.plan(
+                        persona, config.getHistoryStart(), config.getHistoryEnd(), personaRandom)) {
+                    eventGenerator.generateLogin(employee.getId(), loginTime, config.getBatchId());
+                }
+                continue;
+            }
             int loginDays = 5 + random.nextInt(20);
             for (int i = 0; i < loginDays; i++) {
                 LocalDateTime loginTime = randomTimeInRange(
