@@ -829,6 +829,7 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 
 ## 常见问题
 
+- **构建时报 `BuildKit is enabled but the buildx component is missing`**：说明本机的 Docker 没有装 buildx。Dockerfile 不依赖 BuildKit 专属特性，用经典构建器即可：`DOCKER_BUILDKIT=0 COMPOSE_BAKE=false docker compose --profile app up -d --build`（或者安装 buildx）。
 - **`colima is not running` / 连不上 Docker**：`colima start`，然后等 OpenGauss 和 Kafka 就绪（`docker compose ps` 都是 `healthy`）。
 - **端口被占用**：在 `.env` 里改 `WEB_PORT`、`API_PORT`；本机 `8080` 常被别的进程占用，所以默认用了 `8090`/`8081`。
 - **OpenGauss 首次启动慢**：初始化要几十秒，`backend` 会等它健康后才启动，耐心等 `docker compose --profile app ps`。
