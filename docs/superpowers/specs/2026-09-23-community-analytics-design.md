@@ -189,6 +189,8 @@
 
 **部署**：本地/演示环境用 `docker-compose` 一键拉起 OpenGauss + Redis + Kafka + Spring Boot + Vue（Nginx托管前端静态资源）；配置通过 `application.yml`+环境变量管理，不硬编码。该 compose 文件本身也作为正式团队的最小可运行参考环境。
 
+> 实现进度（见 [部署设计](2026-10-05-deployment-design.md)）：`docker compose --profile app up -d --build` 一条命令拉起全栈（Nginx 托管前端并反向代理 `/api`，Kafka 使用 `INTERNAL`/`EXTERNAL` 双监听）；`scripts/seed-demo.sh` 灌入演示数据，`scripts/smoke-test.sh` 做冒烟测试；根目录 `README.md` 汇总了运行方式、配置和已知限制。
+
 **测试**：数据模拟器支持固定随机种子，保证结果可重复；积分引擎单元测试覆盖各行为权重计算及"双边计分/多作者均分"边界逻辑；聚合任务用小规模模拟数据验证汇总结果与明细表直接SUM结果一致；不追求前端E2E覆盖，重点保证后端数据链路正确性。
 
 ## 10. 明确不做的范围（Out of Scope）
