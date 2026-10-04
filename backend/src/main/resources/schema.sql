@@ -146,3 +146,37 @@ CREATE TABLE IF NOT EXISTS leaderboard_snapshot (
 
 CREATE INDEX IF NOT EXISTS idx_leaderboard_snapshot_rank
     ON leaderboard_snapshot(period_type, period_value, rank_no);
+
+CREATE TABLE IF NOT EXISTS blogger_rfm_score (
+    as_of_date         DATE NOT NULL,
+    employee_id        BIGINT NOT NULL REFERENCES employee(id) ON DELETE CASCADE,
+    rank_no            INT NOT NULL,
+    rolling_points_12m BIGINT NOT NULL,
+    recency_days       INT,
+    frequency          INT NOT NULL,
+    monetary           BIGINT NOT NULL,
+    r_score            INT NOT NULL,
+    f_score            INT NOT NULL,
+    m_score            INT NOT NULL,
+    segment_label      VARCHAR(20) NOT NULL,
+    churn_alert        BOOLEAN NOT NULL,
+    PRIMARY KEY (as_of_date, employee_id)
+);
+
+CREATE TABLE IF NOT EXISTS churn_alert (
+    alert_date      DATE NOT NULL,
+    employee_id     BIGINT NOT NULL REFERENCES employee(id) ON DELETE CASCADE,
+    metric          VARCHAR(10) NOT NULL CHECK (metric IN ('ACTIVITY', 'POINTS')),
+    recent_daily    DOUBLE PRECISION NOT NULL,
+    baseline_daily  DOUBLE PRECISION NOT NULL,
+    drop_rate       DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (alert_date, employee_id)
+);
+
+CREATE TABLE IF NOT EXISTS action_playbook (
+    id                  BIGSERIAL PRIMARY KEY,
+    segment_label       VARCHAR(20) NOT NULL,
+    alert_status        VARCHAR(10) NOT NULL CHECK (alert_status IN ('NO_ALERT', 'ALERT')),
+    recommendation_text VARCHAR(1000) NOT NULL,
+    UNIQUE (segment_label, alert_status)
+);

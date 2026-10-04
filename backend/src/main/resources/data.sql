@@ -33,3 +33,12 @@ INSERT INTO points_weight_config (action_type, category, weight, effective_date)
     ('COMMENT_LIKED', 'PASSIVE', 3, '2026-01-01'),
     ('CONTENT_VIEWED', 'PASSIVE', 1, '2026-01-01')
 ON DUPLICATE KEY UPDATE weight = weight;
+
+INSERT INTO action_playbook (segment_label, alert_status, recommendation_text) VALUES
+    ('STAR_KOL', 'NO_ALERT', '纳入“专家专栏”资源位重点推荐，邀请参与线下分享/评审活动，保持曝光激励'),
+    ('STEADY', 'NO_ALERT', '保持常规运营：定期推送热门话题与约稿机会，鼓励向明星KOL梯队成长'),
+    ('RISING', 'NO_ALERT', '加入新人扶持计划，给予首页曝光加权，缩短内容从发布到获得反馈的周期'),
+    ('CHURN_RISK', 'ALERT', '运营同学私信关怀，了解活跃下降原因，推荐开放专属专栏权限或约稿邀请'),
+    ('DORMANT', 'NO_ALERT', '纳入低成本触达清单（邮件/群通知召回），不做重点人工投入'),
+    ('OBSERVE', 'NO_ALERT', '暂不做专项运营，持续观察下一周期的分层变化')
+ON DUPLICATE KEY UPDATE recommendation_text = recommendation_text;
