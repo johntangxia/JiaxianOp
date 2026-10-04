@@ -56,6 +56,50 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ---- 应用服务：`docker compose --profile app up -d --build` 才会启动 ----
+  backend:
+    profiles: ["app"]
+    build:
+      context: ./backend
+    container_name: jiaxian-backend
+    environment:
+      DB_URL: "jdbc:postgresql://opengauss:5432/postgres"
+      DB_USERNAME: "${GS_USERNAME:-jiaxian_app}"
+      DB_PASSWORD: "${GS_PASSWORD:-Jiaxian@2026}"
+      REDIS_HOST: "redis"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      JAVA_OPTS: "${JAVA_OPTS:--XX:MaxRAMPercentage=75}"
+      # 后端用系统默认时区取"今天"和写时间戳，容器默认是 UTC，会和浏览器所在时区差几个小时
+      TZ: "${TZ:-Asia/Shanghai}"
+    ports:
+      - "${API_PORT:-8081}:8080"
+    depends_on:
+      opengauss:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 40s
+    restart: unless-stopped
+
+  web:
+    profiles: ["app"]
+    build:
+      context: ./frontend
+    container_name: jiaxian-web
+    ports:
+      - "${WEB_PORT:-8090}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   opengauss-data:
   kafka-data:

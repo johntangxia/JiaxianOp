@@ -20,7 +20,7 @@
 
 - **基础设施**（`opengauss`、`redis`、`kafka`）不加 profile，`docker compose up -d` 的行为和现在完全一致——后端测试和本地开发流程不变。
 - **应用服务**（`backend`、`web`）都带 `profiles: ["app"]`，`docker compose --profile app up -d --build` 一条命令拉起全栈。
-- **访问入口**：浏览器访问 `http://localhost:${WEB_PORT:-8088}`（8080 在开发机上常被无关进程占用，所以默认 8088）；后端另外映射到宿主机 `${API_PORT:-8081}`，方便直接 `curl` 调管理接口，经 Nginx 也能访问。
+- **访问入口**：浏览器访问 `http://localhost:${WEB_PORT:-8090}`（8080 在开发机上常被无关进程占用，所以默认 8090）；后端另外映射到宿主机 `${API_PORT:-8081}`，方便直接 `curl` 调管理接口，经 Nginx 也能访问。
 - 所有服务 `restart: unless-stopped`；OpenGauss 数据卷保留，Kafka 增加数据卷。
 
 ## 4. Kafka 双监听
@@ -73,7 +73,7 @@
 ## 8. 演示数据脚本与冒烟测试
 
 - **`scripts/seed-demo.sh`**：通过 `API_URL`（默认 `http://localhost:8081`）调用后端：历史回填（默认参数与页面一致：50 员工、20 账号、团队比例 0.25、内容数可通过 `CONTENT_COUNT` 覆盖，默认 300，画像开，结束日期 = 今天往前 30 天，开始日期 = 结束日期往前 18 个月的 1 号）→ PV 汇总重算 → 榜单快照重算 → KOL 重算（统计日取 PV 数据最后一天往前 30 天，12 周）。每一步失败即退出并打印原因。
-- **`scripts/smoke-test.sh`**：在全栈已拉起并灌入演示数据后执行，通过 `WEB_URL`（默认 `http://localhost:8088`）检查：首页 200；深层路径 `/kol` 200（SPA 回退生效）；经 Nginx 访问 `/api/health` 返回 `OK`；趋势、Top N、排行榜（月榜及周期列表）、KOL 名单、积分权重、文案库、维度接口都返回 200 且数据非空；非法参数返回 400。任何一项失败就以非零码退出并说明哪一项。
+- **`scripts/smoke-test.sh`**：在全栈已拉起并灌入演示数据后执行，通过 `WEB_URL`（默认 `http://localhost:8090`）检查：首页 200；深层路径 `/kol` 200（SPA 回退生效）；经 Nginx 访问 `/api/health` 返回 `OK`；趋势、Top N、排行榜（月榜及周期列表）、KOL 名单、积分权重、文案库、维度接口都返回 200 且数据非空；非法参数返回 400。任何一项失败就以非零码退出并说明哪一项。
 - 两个脚本只依赖 `bash`、`curl`、`date`、`python3`（解析 JSON）。
 
 ## 9. 文档
@@ -88,7 +88,7 @@
 
 ## 11. 验证
 
-在本机 Colima 里完整走一遍：构建两个镜像；`docker compose --profile app up -d` 拉起全栈并等所有服务健康；跑 `seed-demo.sh` 和 `smoke-test.sh`；在内置浏览器里打开 `http://localhost:8088` 检查各页面能正常显示数据；最后确认只拉起基础设施（`docker compose up -d`）时 `mvn test` 仍然全过，验证 Kafka 双监听没有破坏现有流程。
+在本机 Colima 里完整走一遍：构建两个镜像；`docker compose --profile app up -d` 拉起全栈并等所有服务健康；跑 `seed-demo.sh` 和 `smoke-test.sh`；在内置浏览器里打开 `http://localhost:8090` 检查各页面能正常显示数据；最后确认只拉起基础设施（`docker compose up -d`）时 `mvn test` 仍然全过，验证 Kafka 双监听没有破坏现有流程。
 
 ## 12. 明确不做的范围（Out of Scope）
 

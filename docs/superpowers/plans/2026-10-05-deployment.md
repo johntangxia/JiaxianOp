@@ -15,7 +15,7 @@
 ## 必读：约定与踩坑记录
 
 1. **本机用 Colima 跑 Docker**：重启电脑后要 `colima start`，再等 OpenGauss（首次可能要几十秒）和 Kafka 就绪。
-2. **8080 端口被无关进程占用**：所以前端默认暴露 `8088`、后端默认暴露 `8081`（都可用 `.env` 改）。开发时手工启动后端仍用 `--server.port=8093`。
+2. **8080、8088 在这台开发机上被别的项目占用**（8088 是另一个项目的 `juliu-web` 容器；Colima 会用 ssh 把容器端口转发到宿主机，`lsof` 里看到的 `ssh` 监听就是它），所以前端默认暴露 `8090`、后端默认暴露 `8081`（都可用 `.env` 改）。开发时手工启动后端仍用 `--server.port=8093`。
 3. **改完 `docker-compose.yml` 要用 `docker compose up -d` 让基础设施按新配置重建**；Kafka 容器重建后主题由应用启动时的 `NewTopic` 自动创建。
 4. **宿主机上的 `mvn test` 依赖基础设施在 `localhost` 上**（`localhost:5432`、`6379`、`9092`），所以 Kafka 的 `EXTERNAL` 监听必须仍然宣告 `localhost:9092`，改完要重新跑一遍完整 `mvn test`。
 5. **Kafka 的 bitnami 镜像里的脚本在 `/opt/bitnami/kafka/bin/`**；OpenGauss 的 `gsql` 在 `/usr/local/opengauss/bin/`，需要设置 `LD_LIBRARY_PATH=/usr/local/opengauss/lib`；OpenGauss 的初始超级用户 `opengauss` 不能远程登录，应用用的是 `GS_USERNAME` 创建的 `jiaxian_app`。
@@ -304,13 +304,13 @@ Expected: 构建成功；`nginx -t` 输出 `syntax is ok` 和 `test is successfu
 再启动一个临时容器验证 SPA 回退和缓存头（此时没有后端，只测静态部分）：
 
 ```bash
-docker run -d --rm --name web-probe -p 18088:80 jiaxian-web:local
+docker run -d --rm --name web-probe -p 18090:80 jiaxian-web:local
 sleep 2
-curl -s -o /dev/null -w "首页 %{http_code}\n" localhost:18088/
-curl -s -o /dev/null -w "深层路径 %{http_code}\n" localhost:18088/kol/12
-curl -sI localhost:18088/ | grep -i cache-control
-ASSET=$(curl -s localhost:18088/ | grep -o '/assets/[^"]*\.js' | head -1)
-curl -sI "localhost:18088$ASSET" | grep -iE "HTTP/|cache-control"
+curl -s -o /dev/null -w "首页 %{http_code}\n" localhost:18090/
+curl -s -o /dev/null -w "深层路径 %{http_code}\n" localhost:18090/kol/12
+curl -sI localhost:18090/ | grep -i cache-control
+ASSET=$(curl -s localhost:18090/ | grep -o '/assets/[^"]*\.js' | head -1)
+curl -sI "localhost:18090$ASSET" | grep -iE "HTTP/|cache-control"
 docker stop web-probe
 ```
 
@@ -434,7 +434,7 @@ services:
       context: ./frontend
     container_name: jiaxian-web
     ports:
-      - "${WEB_PORT:-8088}:80"
+      - "${WEB_PORT:-8090}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -457,7 +457,7 @@ GS_USERNAME=jiaxian_app
 GS_PASSWORD=Jiaxian@2026
 
 # 宿主机上暴露的端口：前端（Nginx）和后端（直接调接口用）
-WEB_PORT=8088
+WEB_PORT=8090
 API_PORT=8081
 
 # 后端 JVM 参数
@@ -507,10 +507,10 @@ Expected: 只有 `opengauss`、`redis`、`kafka`。
 
 ```bash
 curl -s localhost:8081/api/health; echo
-curl -s localhost:8088/api/health; echo
-curl -s -o /dev/null -w "web / %{http_code}\n" localhost:8088/
-curl -s -o /dev/null -w "web /kol %{http_code}\n" localhost:8088/kol
-curl -s localhost:8088/api/admin/points-config | head -c 120; echo
+curl -s localhost:8090/api/health; echo
+curl -s -o /dev/null -w "web / %{http_code}\n" localhost:8090/
+curl -s -o /dev/null -w "web /kol %{http_code}\n" localhost:8090/kol
+curl -s localhost:8090/api/admin/points-config | head -c 120; echo
 docker exec jiaxian-backend date
 ```
 
@@ -609,11 +609,11 @@ echo "演示数据已就绪。"
 ```bash
 #!/usr/bin/env bash
 # 冒烟测试：在全栈已拉起、演示数据已灌入（scripts/seed-demo.sh）之后执行。
-# 用法：scripts/smoke-test.sh            （默认检查 http://localhost:8088）
-#       WEB_URL=http://localhost:8088 scripts/smoke-test.sh
+# 用法：scripts/smoke-test.sh            （默认检查 http://localhost:8090）
+#       WEB_URL=http://localhost:8090 scripts/smoke-test.sh
 set -uo pipefail
 
-WEB_URL="${WEB_URL:-http://localhost:8088}"
+WEB_URL="${WEB_URL:-http://localhost:8090}"
 failed=0
 
 ok() { echo "  ✓ $1"; }
@@ -780,7 +780,7 @@ scripts/seed-demo.sh                       # 灌入演示数据（历史回填 +
 scripts/smoke-test.sh                      # 可选：冒烟测试
 ```
 
-然后打开 http://localhost:8088 。后端也直接暴露在 http://localhost:8081（调管理接口方便）。
+然后打开 http://localhost:8090 。后端也直接暴露在 http://localhost:8081（调管理接口方便）。
 
 停止：`docker compose --profile app down`（加 `-v` 会同时删除数据卷）。
 
@@ -812,7 +812,7 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `GS_USERNAME` / `GS_PASSWORD` | `jiaxian_app` / `Jiaxian@2026` | 数据库业务账号。**默认口令只适合演示，部署前请修改**（OpenGauss 要求同时包含大小写字母、数字和特殊字符） |
-| `WEB_PORT` | `8088` | 前端（Nginx）暴露在宿主机的端口 |
+| `WEB_PORT` | `8090` | 前端（Nginx）暴露在宿主机的端口 |
 | `API_PORT` | `8081` | 后端暴露在宿主机的端口 |
 | `JAVA_OPTS` | `-XX:MaxRAMPercentage=75` | 后端 JVM 参数 |
 | `TZ` | `Asia/Shanghai` | 后端容器时区（后端用系统时区取"今天"） |
@@ -821,7 +821,7 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 
 ## 演示流程
 
-1. 打开 http://localhost:8088/admin/simulator，点"清空并回填"（或运行 `scripts/seed-demo.sh`），再点"一键重算全部"。
+1. 打开 http://localhost:8090/admin/simulator，点"清空并回填"（或运行 `scripts/seed-demo.sh`），再点"一键重算全部"。
 2. **总览看板**：切换日/周/月/年，用频道/账号/博主/内容类型筛选；趋势图的虚线和浅色带是预测和置信区间。
 3. **积分排行榜**：切换月榜/年榜和周期，看主动/被动积分构成。
 4. **KOL 管理**：点击分层卡片筛选；点进一位"流失预警"的博主，看 RFM 历史、标签变化和活跃时间轴的断崖。
@@ -830,7 +830,7 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 ## 常见问题
 
 - **`colima is not running` / 连不上 Docker**：`colima start`，然后等 OpenGauss 和 Kafka 就绪（`docker compose ps` 都是 `healthy`）。
-- **端口被占用**：在 `.env` 里改 `WEB_PORT`、`API_PORT`；本机 `8080` 常被别的进程占用，所以默认用了 `8088`/`8081`。
+- **端口被占用**：在 `.env` 里改 `WEB_PORT`、`API_PORT`；本机 `8080` 常被别的进程占用，所以默认用了 `8090`/`8081`。
 - **OpenGauss 首次启动慢**：初始化要几十秒，`backend` 会等它健康后才启动，耐心等 `docker compose --profile app ps`。
 - **历史回填要一两分钟**：整个回填在一个事务里，期间页面按钮显示"回填中…"，数据库里也看不到新数据，完成后才一次性可见。
 - **Vite 开发服务器第一次打开某个页面时控制台有一条 404**：开发模式下依赖重新优化造成的，刷新即可，生产构建没有。
@@ -888,11 +888,11 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: 全栈容器在运行并有演示数据**
 
-确认 Task 4/5 的全栈仍在运行：`docker compose --profile app ps --format '{{.Name}} {{.Status}}'`；演示数据已灌入（`curl -s localhost:8088/api/meta/pv-range` 的 `to` 不是 null）。
+确认 Task 4/5 的全栈仍在运行：`docker compose --profile app ps --format '{{.Name}} {{.Status}}'`；演示数据已灌入（`curl -s localhost:8090/api/meta/pv-range` 的 `to` 不是 null）。
 
 - [ ] **Step 2: 在内置浏览器里检查生产部署的页面**
 
-打开 `http://localhost:8088`（这是 Nginx 托管的生产构建，不是 Vite 开发服务器），逐页检查并截图：
+打开 `http://localhost:8090`（这是 Nginx 托管的生产构建，不是 Vite 开发服务器），逐页检查并截图：
 
 1. **总览看板**：趋势图、预测虚线、Top N；换粒度/筛选正常。
 2. **积分排行榜**：周期下拉、榜单、堆叠条。
@@ -947,4 +947,4 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 **2. 占位符扫描：** 无 TBD/TODO。各"如果……则……"的排查说明都给了具体的应对步骤。
 
-**3. 一致性：** 端口默认值（`WEB_PORT=8088`、`API_PORT=8081`）在 compose、`.env.example`、脚本默认 `API_URL`/`WEB_URL`、README 里一致；Kafka 内部地址 `kafka:29092` 与后端容器的 `KAFKA_BOOTSTRAP_SERVERS` 一致；`GS_USERNAME`/`GS_PASSWORD` 在 OpenGauss、`backend` 的 `DB_USERNAME`/`DB_PASSWORD`、README 之间一致；演示数据的默认参数与页面的 `defaultBackfillForm` 一致（50 员工、20 账号、0.25、300 内容、种子 7、画像开、结束日期今天往前 30 天、开始日期往前 18 个月的 1 号）；KOL 统计日"PV 最后一天往前 30 天"与页面的 `kolAsOfFromPvEnd` 一致。
+**3. 一致性：** 端口默认值（`WEB_PORT=8090`、`API_PORT=8081`）在 compose、`.env.example`、脚本默认 `API_URL`/`WEB_URL`、README 里一致；Kafka 内部地址 `kafka:29092` 与后端容器的 `KAFKA_BOOTSTRAP_SERVERS` 一致；`GS_USERNAME`/`GS_PASSWORD` 在 OpenGauss、`backend` 的 `DB_USERNAME`/`DB_PASSWORD`、README 之间一致；演示数据的默认参数与页面的 `defaultBackfillForm` 一致（50 员工、20 账号、0.25、300 内容、种子 7、画像开、结束日期今天往前 30 天、开始日期往前 18 个月的 1 号）；KOL 统计日"PV 最后一天往前 30 天"与页面的 `kolAsOfFromPvEnd` 一致。
