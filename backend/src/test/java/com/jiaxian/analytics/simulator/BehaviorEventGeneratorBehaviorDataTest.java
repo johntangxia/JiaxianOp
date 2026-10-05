@@ -127,4 +127,28 @@ class BehaviorEventGeneratorBehaviorDataTest {
 
         verifyNoInteractions(pointsLedgerRepository, activeActionLogRepository);
     }
+
+    @Test
+    void referenceDataCachingAvoidsRepeatedWeightAndAuthorLookups() {
+        when(contentAuthorRepository.findByContentId(10L)).thenReturn(List.of(ContentAuthor.builder().contentId(10L).employeeId(2L).build()));
+        generator.cacheReferenceData();
+
+        for (int i = 0; i < 5; i++) {
+            generator.generateView(10L, 1L, T, "b");
+        }
+
+        verify(pointsWeightConfigRepository, times(1)).findFirstByActionTypeOrderByEffectiveDateDesc("VIEW");
+        verify(pointsWeightConfigRepository, times(1)).findFirstByActionTypeOrderByEffectiveDateDesc("CONTENT_VIEWED");
+        verify(contentAuthorRepository, times(1)).findByContentId(10L);
+        verify(pointsLedgerRepository, times(10)).save(any());   // 缓存不影响写入
+    }
+
+    @Test
+    void withoutCachingEveryEventLooksTheWeightUpAgainSoRuntimeChangesApply() {
+        for (int i = 0; i < 3; i++) {
+            generator.generateView(10L, 1L, T, "b");
+        }
+
+        verify(pointsWeightConfigRepository, times(3)).findFirstByActionTypeOrderByEffectiveDateDesc("VIEW");
+    }
 }

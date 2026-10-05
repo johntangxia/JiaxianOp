@@ -4,7 +4,9 @@ import com.jiaxian.analytics.domain.*;
 import com.jiaxian.analytics.repository.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 public class BehaviorEventGenerator {
@@ -21,6 +23,9 @@ public class BehaviorEventGenerator {
     private final SearchLogRepository searchLogRepository;
     private final ContentTagRepository contentTagRepository;
     private final Random random;
+    /** 回填期间权重和作者都不会变，缓存起来能省掉每条事件的重复查询；实时消费者不开启（权重可以在运行时改）。 */
+    private Map<String, Integer> weightCache;
+    private Map<Long, List<ContentAuthor>> authorCache;
 
     /** 只关心积分和明细的调用方（不记录曝光、关注、搜索、标签）；用到那些方法会抛 NullPointerException。 */
     public BehaviorEventGenerator(PvLogRepository pvLogRepository,
@@ -60,6 +65,37 @@ public class BehaviorEventGenerator {
         this.searchLogRepository = searchLogRepository;
         this.contentTagRepository = contentTagRepository;
         this.random = random;
+    }
+
+    /** 开启权重和内容作者的缓存；只在参考数据在这个实例的生命周期里不变时调用（历史回填）。 */
+    public void cacheReferenceData() {
+        weightCache = new HashMap<>();
+        authorCache = new HashMap<>();
+    }
+
+    /** 当前登录的积分权重（批量写入登录时用）。 */
+    public int loginWeight() {
+        return weightOf("LOGIN");
+    }
+
+    private int weightOf(String actionType) {
+        if (weightCache != null && weightCache.containsKey(actionType)) {
+            return weightCache.get(actionType);
+        }
+        int weight = pointsWeightConfigRepository.findFirstByActionTypeOrderByEffectiveDateDesc(actionType)
+            .map(PointsWeightConfig::getWeight)
+            .orElseThrow(() -> new IllegalStateException("Missing points weight config for " + actionType));
+        if (weightCache != null) {
+            weightCache.put(actionType, weight);
+        }
+        return weight;
+    }
+
+    private List<ContentAuthor> authorsOf(Long contentId) {
+        if (authorCache == null) {
+            return contentAuthorRepository.findByContentId(contentId);
+        }
+        return authorCache.computeIfAbsent(contentId, contentAuthorRepository::findByContentId);
     }
 
     public void generatePost(Long contentId, Long authorId, LocalDateTime occurTime, String batchId) {
@@ -162,10 +198,7 @@ public class BehaviorEventGenerator {
         } else {
             Comment parent = commentRepository.findById(parentCommentId)
                 .orElseThrow(() -> new IllegalStateException("Parent comment not found: " + parentCommentId));
-            int weight = pointsWeightConfigRepository
-                .findFirstByActionTypeOrderByEffectiveDateDesc("COMMENT_REPLIED")
-                .map(PointsWeightConfig::getWeight)
-                .orElseThrow(() -> new IllegalStateException("Missing points weight config for COMMENT_REPLIED"));
+            int weight = weightOf("COMMENT_REPLIED");
             pointsLedgerRepository.save(PointsLedger.builder()
                 .employeeId(parent.getEmployeeId()).actionType("COMMENT_REPLIED")
                 .category(PointsCategory.PASSIVE).points(weight)
@@ -185,10 +218,7 @@ public class BehaviorEventGenerator {
 
         Comment comment = commentRepository.findById(commentId)
             .orElseThrow(() -> new IllegalStateException("Comment not found: " + commentId));
-        int weight = pointsWeightConfigRepository
-            .findFirstByActionTypeOrderByEffectiveDateDesc("COMMENT_LIKED")
-            .map(PointsWeightConfig::getWeight)
-            .orElseThrow(() -> new IllegalStateException("Missing points weight config for COMMENT_LIKED"));
+        int weight = weightOf("COMMENT_LIKED");
         pointsLedgerRepository.save(PointsLedger.builder()
             .employeeId(comment.getEmployeeId()).actionType("COMMENT_LIKED")
             .category(PointsCategory.PASSIVE).points(weight)
@@ -201,10 +231,7 @@ public class BehaviorEventGenerator {
             .employeeId(employeeId).actionType(actionType).refId(refId)
             .occurTime(occurTime).simulationBatchId(batchId).build());
 
-        int weight = pointsWeightConfigRepository
-            .findFirstByActionTypeOrderByEffectiveDateDesc(weightActionType)
-            .map(PointsWeightConfig::getWeight)
-            .orElseThrow(() -> new IllegalStateException("Missing points weight config for " + weightActionType));
+        int weight = weightOf(weightActionType);
 
         pointsLedgerRepository.save(PointsLedger.builder()
             .employeeId(employeeId).actionType(weightActionType).category(PointsCategory.ACTIVE)
@@ -213,15 +240,12 @@ public class BehaviorEventGenerator {
 
     private void creditContentAuthorsPassive(Long contentId, String weightActionType,
                                                LocalDateTime occurTime, String batchId) {
-        List<ContentAuthor> authors = contentAuthorRepository.findByContentId(contentId);
+        List<ContentAuthor> authors = authorsOf(contentId);
         if (authors.isEmpty()) {
             return;
         }
 
-        int totalWeight = pointsWeightConfigRepository
-            .findFirstByActionTypeOrderByEffectiveDateDesc(weightActionType)
-            .map(PointsWeightConfig::getWeight)
-            .orElseThrow(() -> new IllegalStateException("Missing points weight config for " + weightActionType));
+        int totalWeight = weightOf(weightActionType);
 
         int perAuthorPoints = totalWeight / authors.size();
         for (ContentAuthor author : authors) {

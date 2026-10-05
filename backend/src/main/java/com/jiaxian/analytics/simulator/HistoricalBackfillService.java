@@ -61,6 +61,7 @@ public class HistoricalBackfillService {
     private final FollowRelationRepository followRelationRepository;
     private final SearchLogRepository searchLogRepository;
     private final ContentTagRepository contentTagRepository;
+    private final LoginBatchWriter loginBatchWriter;
 
     public HistoricalBackfillService(EmployeeRepository employeeRepository,
                                       AccountRepository accountRepository,
@@ -78,7 +79,8 @@ public class HistoricalBackfillService {
                                       ImpressionRepository impressionRepository,
                                       FollowRelationRepository followRelationRepository,
                                       SearchLogRepository searchLogRepository,
-                                      ContentTagRepository contentTagRepository) {
+                                      ContentTagRepository contentTagRepository,
+                                      LoginBatchWriter loginBatchWriter) {
         this.employeeRepository = employeeRepository;
         this.accountRepository = accountRepository;
         this.accountMemberRepository = accountMemberRepository;
@@ -96,6 +98,7 @@ public class HistoricalBackfillService {
         this.followRelationRepository = followRelationRepository;
         this.searchLogRepository = searchLogRepository;
         this.contentTagRepository = contentTagRepository;
+        this.loginBatchWriter = loginBatchWriter;
     }
 
     @Transactional
@@ -114,6 +117,7 @@ public class HistoricalBackfillService {
             contentAuthorRepository, pointsWeightConfigRepository, pointsLedgerRepository,
             commentRepository, impressionRepository, followRelationRepository, searchLogRepository,
             contentTagRepository, random);
+        eventGenerator.cacheReferenceData();
 
         for (Content content : entities.getContents()) {
             List<ContentAuthor> authors = contentAuthorRepository.findByContentId(content.getId());
@@ -255,6 +259,8 @@ public class HistoricalBackfillService {
 
         // 登录：画像员工沿用 PersonaLoginPlanner 的规划；RANDOM 员工按留存分型每天抽一次，
         // 且不早于加入社区的日期。两者都用独立随机流，不扰动回填的主随机序列。
+        // 登录占了绝大多数行，先收集起来最后用 JDBC 批量写入（内容和 generateLogin 完全一样）。
+        List<LoginBatchWriter.Login> logins = new ArrayList<>();
         for (int employeeIndex = 0; employeeIndex < entities.getProfiles().size(); employeeIndex++) {
             EmployeeProfile profile = entities.getProfiles().get(employeeIndex);
             Long employeeId = profile.employee().getId();
@@ -262,7 +268,7 @@ public class HistoricalBackfillService {
                 Random personaRandom = new Random(config.getRandomSeed() * 1_000_003L + employeeIndex);
                 for (LocalDateTime loginTime : PersonaLoginPlanner.plan(
                         profile.persona(), config.getHistoryStart(), config.getHistoryEnd(), personaRandom)) {
-                    eventGenerator.generateLogin(employeeId, loginTime, config.getBatchId());
+                    logins.add(new LoginBatchWriter.Login(employeeId, loginTime));
                 }
                 continue;
             }
@@ -271,11 +277,12 @@ public class HistoricalBackfillService {
                 ? profile.joinDate() : config.getHistoryStart();
             for (LocalDate day = firstDay; day.isBefore(config.getHistoryEnd()); day = day.plusDays(1)) {
                 if (loginRandom.nextDouble() < activityModel.dailyActivity(profile, day)) {
-                    eventGenerator.generateLogin(employeeId, ActivityModel.timeOfDay(day, loginRandom),
-                        config.getBatchId());
+                    logins.add(new LoginBatchWriter.Login(employeeId, ActivityModel.timeOfDay(day, loginRandom)));
                 }
             }
         }
+
+        loginBatchWriter.write(logins, eventGenerator.loginWeight(), config.getBatchId());
 
         EditorialPickGenerator editorialPickGenerator = new EditorialPickGenerator(
             contentAuthorRepository, editorialPickLogRepository,
