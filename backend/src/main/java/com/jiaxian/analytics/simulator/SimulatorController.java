@@ -31,6 +31,8 @@ public class SimulatorController {
             .historyEnd(request.getHistoryEnd())
             .randomSeed(request.getRandomSeed())
             .personas(request.isPersonas())
+            .viewsPerActiveDay(request.getViewsPerActiveDay() != null
+                ? request.getViewsPerActiveDay() : SimulationConfig.DEFAULT_VIEWS_PER_ACTIVE_DAY)
             .build();
 
         backfillService.runBackfill(config);
@@ -48,5 +50,7 @@ public class SimulatorController {
         private LocalDate historyEnd;
         private long randomSeed;
         private boolean personas;
+        /** 可选：每个登录日平均浏览次数，默认 2.0。 */
+        private Double viewsPerActiveDay;
     }
 }

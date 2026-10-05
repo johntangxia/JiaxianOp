@@ -23,7 +23,7 @@ class PersonaLoginPlannerTest {
     void starLogsInAboutEightyPercentOfDaysAcrossTheWholeHistory() {
         List<LocalDateTime> logins = plan(BloggerPersona.STAR);
 
-        assertThat(logins.size()).isBetween(297, 381);   // 424 天 × 0.8 ± 约 5σ
+        assertThat(logins.size()).isBetween(235, 320);   // 424 天 × 0.8 × 周末因子折算 0.81 ≈ 276
         assertThat(logins).allSatisfy(t -> {
             assertThat(t.toLocalDate()).isAfterOrEqualTo(START).isBefore(END);
         });
@@ -35,24 +35,61 @@ class PersonaLoginPlannerTest {
     void churningStopsLoggingInSixtyDaysBeforeTheEnd() {
         List<LocalDateTime> logins = plan(BloggerPersona.CHURNING);
 
-        assertThat(logins.size()).isBetween(250, 330);   // 364 天 × 0.8
+        assertThat(logins.size()).isBetween(195, 280);   // 364 天 × 0.8 × 0.81 ≈ 237
         assertThat(logins).allSatisfy(t -> assertThat(t.toLocalDate()).isBefore(END.minusDays(60)));
     }
 
     @Test
-    void risingLogsInExactlyTwiceTwentyAndOneDaysBeforeTheEnd() {
-        List<LocalDateTime> logins = plan(BloggerPersona.RISING);
+    void risingLogsInFromTheJoinDateWithAtLeastTwoLoginsAndTheLastOneNearTheEnd() {
+        LocalDate join = END.minusDays(40);
+        for (long seed = 1; seed <= 20; seed++) {
+            List<LocalDateTime> logins = PersonaLoginPlanner.plan(BloggerPersona.RISING, START, END, join, new Random(seed));
 
-        assertThat(logins).containsExactlyInAnyOrder(
-            END.minusDays(20).atTime(10, 0), END.minusDays(1).atTime(10, 0));
+            assertThat(logins.size()).as("seed %d", seed).isGreaterThanOrEqualTo(2);
+            assertThat(logins).allSatisfy(t -> assertThat(t.toLocalDate()).isAfterOrEqualTo(join).isBefore(END));
+            LocalDate last = logins.stream().map(LocalDateTime::toLocalDate).max(LocalDate::compareTo).orElseThrow();
+            assertThat(last).isBetween(END.minusDays(3), END.minusDays(1));
+        }
     }
 
     @Test
-    void risingSkipsLoginsThatWouldFallBeforeTheHistoryStart() {
-        List<LocalDateTime> logins = PersonaLoginPlanner.plan(
-            BloggerPersona.RISING, END.minusDays(10), END, new Random(7));
+    void risingLastLoginsAreSpreadOverSeveralDaysInsteadOfPilingUpOnTheLastDay() {
+        java.util.Set<LocalDate> lastDays = new java.util.HashSet<>();
+        for (long seed = 1; seed <= 30; seed++) {
+            List<LocalDateTime> logins = PersonaLoginPlanner.plan(BloggerPersona.RISING, START, END, END.minusDays(40), new Random(seed));
+            lastDays.add(logins.stream().map(LocalDateTime::toLocalDate).max(LocalDate::compareTo).orElseThrow());
+        }
 
-        assertThat(logins).containsExactly(END.minusDays(1).atTime(10, 0));
+        assertThat(lastDays).hasSize(3);
+    }
+
+    @Test
+    void risingLogsInAboutTwentyPercentOfDaysSinceJoining() {
+        long total = 0;
+        for (long seed = 1; seed <= 50; seed++) {
+            total += PersonaLoginPlanner.plan(BloggerPersona.RISING, START, END, END.minusDays(50), new Random(seed)).size();
+        }
+
+        assertThat(total / 50.0).isBetween(5.0, 12.0);   // 约 47 天 × 0.2 × 0.81 ≈ 8
+    }
+
+    @Test
+    void risingBeforeTheHistoryStartStillStartsAtTheHistoryStart() {
+        List<LocalDateTime> logins = PersonaLoginPlanner.plan(BloggerPersona.RISING, END.minusDays(10), END,
+            END.minusDays(500), new Random(7));
+
+        assertThat(logins).isNotEmpty().allSatisfy(t -> assertThat(t.toLocalDate()).isAfterOrEqualTo(END.minusDays(10)));
+    }
+
+    @Test
+    void starAndChurningLogInLessOnWeekends() {
+        List<LocalDateTime> logins = plan(BloggerPersona.STAR);
+        long weekend = logins.stream().filter(t -> t.getDayOfWeek().getValue() >= 6).count();
+        long weekday = logins.size() - weekend;
+
+        // 每个周末日的登录率只有工作日的 35%：周末日均 / 工作日均 ≈ 0.35
+        double ratio = (weekend / (424 * 2.0 / 7)) / (weekday / (424 * 5.0 / 7));
+        assertThat(ratio).isBetween(0.2, 0.5);
     }
 
     @Test

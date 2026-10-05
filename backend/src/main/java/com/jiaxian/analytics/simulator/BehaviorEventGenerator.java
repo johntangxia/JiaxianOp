@@ -78,6 +78,16 @@ public class BehaviorEventGenerator {
         return weightOf("LOGIN");
     }
 
+    /** 当前"浏览"（浏览者的主动积分）的权重（批量写入浏览时用）。 */
+    public int viewWeight() {
+        return weightOf("VIEW");
+    }
+
+    /** 当前"内容被浏览"（作者的被动积分）的权重，由作者平分（批量写入浏览时用）。 */
+    public int contentViewedWeight() {
+        return weightOf("CONTENT_VIEWED");
+    }
+
     private int weightOf(String actionType) {
         if (weightCache != null && weightCache.containsKey(actionType)) {
             return weightCache.get(actionType);

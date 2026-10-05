@@ -13,26 +13,37 @@ class PersonaAssignerTest {
     }
 
     @Test
-    void fiftyEmployeesSplitIntoTenTenTenTwentyAndTheRest() {
-        List<BloggerPersona> personas = PersonaAssigner.assign(50, 21);
+    void aThousandEmployeesGetThreeTwoThreeFivePercentAndTheRestRandom() {
+        List<BloggerPersona> personas = PersonaAssigner.assign(1000, 21);
 
-        assertThat(personas).hasSize(50);
-        assertThat(count(personas, BloggerPersona.STAR)).isEqualTo(5);
-        assertThat(count(personas, BloggerPersona.RISING)).isEqualTo(5);
-        assertThat(count(personas, BloggerPersona.CHURNING)).isEqualTo(5);
-        assertThat(count(personas, BloggerPersona.DORMANT)).isEqualTo(10);
-        assertThat(count(personas, BloggerPersona.RANDOM)).isEqualTo(25);
+        assertThat(personas).hasSize(1000);
+        assertThat(count(personas, BloggerPersona.STAR)).isEqualTo(30);
+        assertThat(count(personas, BloggerPersona.RISING)).isEqualTo(20);
+        assertThat(count(personas, BloggerPersona.CHURNING)).isEqualTo(30);
+        assertThat(count(personas, BloggerPersona.DORMANT)).isEqualTo(50);
+        assertThat(count(personas, BloggerPersona.RANDOM)).isEqualTo(870);
     }
 
     @Test
-    void tenEmployeesGetOneOneOneTwoAndFiveRandom() {
-        List<BloggerPersona> personas = PersonaAssigner.assign(10, 3);
+    void smallTeamsStillGetAtLeastTwoOfEveryPersona() {
+        List<BloggerPersona> personas = PersonaAssigner.assign(50, 21);
 
-        assertThat(count(personas, BloggerPersona.STAR)).isEqualTo(1);
-        assertThat(count(personas, BloggerPersona.RISING)).isEqualTo(1);
+        assertThat(personas).hasSize(50);
+        for (BloggerPersona persona : List.of(BloggerPersona.STAR, BloggerPersona.RISING, BloggerPersona.CHURNING,
+            BloggerPersona.DORMANT)) {
+            assertThat(count(personas, persona)).as(persona.name()).isGreaterThanOrEqualTo(2);
+        }
+        assertThat(count(personas, BloggerPersona.RANDOM)).isGreaterThan(30);
+    }
+
+    @Test
+    void tooFewEmployeesAreSplitWithoutExceedingTheTotal() {
+        List<BloggerPersona> personas = PersonaAssigner.assign(5, 3);
+
+        assertThat(personas).hasSize(5);
+        assertThat(count(personas, BloggerPersona.STAR)).isEqualTo(2);
+        assertThat(count(personas, BloggerPersona.RISING)).isEqualTo(2);
         assertThat(count(personas, BloggerPersona.CHURNING)).isEqualTo(1);
-        assertThat(count(personas, BloggerPersona.DORMANT)).isEqualTo(2);
-        assertThat(count(personas, BloggerPersona.RANDOM)).isEqualTo(5);
     }
 
     @Test

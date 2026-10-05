@@ -10,13 +10,15 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * 规划关注关系：员工关注 round(2 + 10 × 活跃倾向) 个账号，70% 偏向与自己同领域的账号；
+ * 规划关注关系：员工关注 4 + round(30 × 活跃倾向^0.6) 个账号（人均约 7 个），被关注的账号按体量权重（幂律）挑，
+ * 所以头部账号粉丝多、尾部账号粉丝少，70% 偏向与自己同领域的账号；
  * 关注时间在加入社区之后；约 12% 的关注在 30–200 天后取消。只做规划，不落库。
  */
 public final class FollowPlanner {
 
-    static final int BASE_FOLLOWS = 2;
-    static final double FOLLOWS_PER_PROPENSITY = 10;
+    static final int BASE_FOLLOWS = 4;
+    static final double FOLLOWS_PER_PROPENSITY = 30;
+    static final double PROPENSITY_EXPONENT = 0.6;
     static final double SAME_DOMAIN_RATIO = 0.7;
     static final double UNFOLLOW_RATIO = 0.12;
     static final int MIN_UNFOLLOW_DAYS = 30;
@@ -33,17 +35,18 @@ public final class FollowPlanner {
     }
 
     /**
-     * @param accountDepts 账号 id → 该账号成员所在的领域集合，用来判断"同领域"
+     * @param accountDepts   账号 id → 该账号成员所在的领域集合，用来判断"同领域"
+     * @param accountWeights 账号 id → 体量权重，被关注的概率按它；缺失的账号按 1 计
      */
     public static List<Edge> plan(List<EmployeeProfile> profiles, List<Long> accountIds,
-                                  Map<Long, Set<String>> accountDepts, LocalDate historyStart, LocalDate historyEnd,
-                                  Random random) {
+                                  Map<Long, Set<String>> accountDepts, Map<Long, Double> accountWeights,
+                                  LocalDate historyStart, LocalDate historyEnd, Random random) {
         List<Edge> edges = new ArrayList<>();
         if (accountIds.isEmpty()) {
             return edges;
         }
         for (EmployeeProfile profile : profiles) {
-            long wanted = Math.round(BASE_FOLLOWS + FOLLOWS_PER_PROPENSITY * profile.propensity());
+            long wanted = Math.round(BASE_FOLLOWS + FOLLOWS_PER_PROPENSITY * Math.pow(profile.propensity(), PROPENSITY_EXPONENT));
             String dept = profile.employee().getDept();
             List<Long> sameDomain = accountIds.stream()
                 .filter(id -> accountDepts.getOrDefault(id, Set.of()).contains(dept)).toList();
@@ -51,9 +54,10 @@ public final class FollowPlanner {
                 ? profile.joinDate() : historyStart;
 
             Set<Long> followed = new HashSet<>();
-            for (int i = 0; i < wanted && followed.size() < accountIds.size(); i++) {
+            // 幂律下头部账号容易重复抽到，多给几次机会，让实际关注数接近想要的数
+            for (int i = 0; i < wanted * 4 && followed.size() < Math.min(wanted, accountIds.size()); i++) {
                 List<Long> pool = !sameDomain.isEmpty() && random.nextDouble() < SAME_DOMAIN_RATIO ? sameDomain : accountIds;
-                long accountId = pool.get(random.nextInt(pool.size()));
+                long accountId = pickWeighted(pool, accountWeights, random);
                 if (!followed.add(accountId)) {
                     continue;
                 }
@@ -70,5 +74,21 @@ public final class FollowPlanner {
             }
         }
         return edges;
+    }
+
+    private static long pickWeighted(List<Long> pool, Map<Long, Double> weights, Random random) {
+        double total = 0;
+        for (long id : pool) {
+            total += weights.getOrDefault(id, 1.0);
+        }
+        double target = random.nextDouble() * total;
+        double cumulative = 0;
+        for (long id : pool) {
+            cumulative += weights.getOrDefault(id, 1.0);
+            if (target < cumulative) {
+                return id;
+            }
+        }
+        return pool.get(pool.size() - 1);
     }
 }

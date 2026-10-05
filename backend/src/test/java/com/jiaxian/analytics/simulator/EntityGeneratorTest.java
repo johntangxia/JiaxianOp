@@ -116,14 +116,14 @@ class EntityGeneratorTest {
     }
 
     @Test
-    void aboutFortyFivePercentAreExistingMembersAndNewcomersJoinDuringHistory() {
+    void aboutSeventyPercentAreExistingMembersAndNewcomersJoinDuringHistory() {
         EntityGenerator.GeneratedEntities result = generator().generate(config().build());
 
         long existing = result.getEmployees().stream().filter(e -> e.getCommunityJoinDate().isBefore(START)).count();
-        assertThat(existing / 200.0).isBetween(0.35, 0.55);
+        assertThat(existing / 200.0).isBetween(0.60, 0.80);
         assertThat(result.getEmployees()).allMatch(e -> e.getCommunityJoinDate().isBefore(END.minusDays(13)));
         assertThat(result.getEmployees().stream().filter(e -> !e.getCommunityJoinDate().isBefore(START)).count())
-            .isGreaterThan(50);
+            .isGreaterThan(30);
     }
 
     @Test
@@ -135,7 +135,7 @@ class EntityGeneratorTest {
             switch (profile.persona()) {
                 case RISING -> {
                     long daysBeforeEnd = java.time.temporal.ChronoUnit.DAYS.between(join, END);
-                    assertThat(daysBeforeEnd).isBetween(21L, 25L);
+                    assertThat(daysBeforeEnd).isBetween(21L, 60L);
                 }
                 case STAR, CHURNING, DORMANT -> assertThat(join).isBefore(START);
                 case RANDOM -> { }
@@ -143,6 +143,89 @@ class EntityGeneratorTest {
         }
         assertThat(result.getProfiles()).filteredOn(p -> p.persona() == BloggerPersona.STAR).isNotEmpty()
             .noneMatch(EmployeeProfile::lurker);
+    }
+
+    @Test
+    void risingMembersJoinSpreadOverSeveralWeeksInsteadOfPilingUp() {
+        EntityGenerator.GeneratedEntities result = generator().generate(config().employeeCount(1000).accountCount(100)
+            .contentCount(200).personas(true).build());
+
+        List<Long> daysBeforeEnd = result.getProfiles().stream().filter(p -> p.persona() == BloggerPersona.RISING)
+            .map(p -> java.time.temporal.ChronoUnit.DAYS.between(p.joinDate(), END)).toList();
+
+        assertThat(daysBeforeEnd).hasSize(20);
+        assertThat(daysBeforeEnd.stream().distinct().count()).isGreaterThan(10);
+        assertThat(daysBeforeEnd.stream().mapToLong(Long::longValue).max().orElse(0)
+            - daysBeforeEnd.stream().mapToLong(Long::longValue).min().orElse(0)).isGreaterThan(20);
+    }
+
+    @Test
+    void retentionArchetypesSplitThirtyFiftyTwentyAndFadersFadeAtDifferentTimes() {
+        EntityGenerator.GeneratedEntities result = generator().generate(config().employeeCount(1000).accountCount(100)
+            .contentCount(200).build());
+
+        Map<RetentionArchetype, Long> counts = new HashMap<>();
+        result.getProfiles().forEach(p -> counts.merge(p.archetype(), 1L, Long::sum));
+        assertThat(counts.get(RetentionArchetype.REGULAR) / 1000.0).isBetween(0.25, 0.35);
+        assertThat(counts.get(RetentionArchetype.OCCASIONAL) / 1000.0).isBetween(0.45, 0.55);
+        assertThat(counts.get(RetentionArchetype.FADING) / 1000.0).isBetween(0.15, 0.25);
+
+        List<EmployeeProfile> faders = result.getProfiles().stream().filter(p -> p.archetype() == RetentionArchetype.FADING).toList();
+        // 淡出起点横跨整个历史，不是全部挤在最开始；而且都留出了淡出的时间
+        assertThat(faders.stream().filter(p -> p.fadeStart().isAfter(START.plusDays(200))).count()).isGreaterThan(faders.size() / 4);
+        // （历史结束前一个月内才加入的人没有这么长的历史，淡出起点只能紧挨着加入日，不在此列）
+        assertThat(faders.stream().filter(p -> p.joinDate().isBefore(END.minusDays(60))))
+            .allMatch(p -> p.fadeStart().isBefore(END.minusDays(29)));
+    }
+
+    @Test
+    void aboutThirtyPercentOfFadersComeBackAfterAGapAndOnlyFadersDo() {
+        EntityGenerator.GeneratedEntities result = generator().generate(config().employeeCount(1000).accountCount(100)
+            .contentCount(200).build());
+
+        List<EmployeeProfile> faders = result.getProfiles().stream().filter(p -> p.archetype() == RetentionArchetype.FADING).toList();
+        long returning = faders.stream().filter(p -> p.returnDay() != null).count();
+        assertThat(returning / (double) faders.size()).isBetween(0.2, 0.4);
+        assertThat(faders.stream().filter(p -> p.returnDay() != null)).allSatisfy(p -> {
+            long gap = java.time.temporal.ChronoUnit.DAYS.between(p.fadeStart().plusDays(p.fadeLength()), p.returnDay());
+            assertThat(gap).isBetween(30L, 120L);
+        });
+        assertThat(result.getProfiles().stream().filter(p -> p.archetype() != RetentionArchetype.FADING))
+            .allMatch(p -> p.returnDay() == null);
+    }
+
+    @Test
+    void contentIsConcentratedInAFewHeadAccountsWhileTailAccountsPostLittle() {
+        EntityGenerator.GeneratedEntities result = generator().generate(config().employeeCount(300).accountCount(100)
+            .contentCount(1500).build());
+
+        Map<Long, Long> perAccount = new HashMap<>();
+        result.getContents().forEach(c -> perAccount.merge(c.getAccountId(), 1L, Long::sum));
+        List<Long> sorted = perAccount.values().stream().sorted(java.util.Comparator.reverseOrder()).toList();
+
+        assertThat(sorted.get(0)).isGreaterThan(sorted.get(sorted.size() / 2) * 5);
+        assertThat(sorted.stream().limit(10).mapToLong(Long::longValue).sum() / 1500.0).isGreaterThan(0.40);
+        assertThat(result.getAccountWeights()).hasSize(100);
+        assertThat(result.getAccountWeights().values().stream().mapToDouble(Double::doubleValue).max().orElse(0)).isEqualTo(1.0);
+    }
+
+    @Test
+    void authorsWhoJoinedDuringTheHistoryPostOnlyAfterAWeekOfReading() {
+        EntityGenerator.GeneratedEntities result = generator().generate(config().build());
+
+        Map<Long, Employee> employeeById = new HashMap<>();
+        result.getEmployees().forEach(e -> employeeById.put(e.getId(), e));
+        Map<Long, Content> contentById = new HashMap<>();
+        result.getContents().forEach(c -> contentById.put(c.getId(), c));
+        for (ContentAuthor author : contentAuthors) {
+            LocalDate join = employeeById.get(author.getEmployeeId()).getCommunityJoinDate();
+            LocalDate published = contentById.get(author.getContentId()).getPublishTime().toLocalDate();
+            if (!join.isBefore(START)) {
+                LocalDate earliest = join.plusDays(7);
+                // 加入得太晚、一周之后已经到了历史结束时，发布时间被压在最后一天
+                assertThat(published).isAfterOrEqualTo(earliest.isBefore(END) ? earliest : END.minusDays(1));
+            }
+        }
     }
 
     @Test

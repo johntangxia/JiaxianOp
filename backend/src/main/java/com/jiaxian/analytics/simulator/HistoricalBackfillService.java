@@ -27,24 +27,19 @@ import java.util.Random;
 public class HistoricalBackfillService {
 
     /**
-     * 沉默读者约占三分之一，不互动；为了让互动总量和以前大致相当，非沉默读者的互动概率乘以这个系数。
+     * 每次浏览之后的互动概率（只对非沉默读者）：赞 3%、评论 0.5%、转发 0.6%、收藏 0.5%，
+     * 沉默读者约占三分之一，折算后互动数约占 PV 的 3%（真实社区通常 2–5%）。
      */
-    static final double INTERACTION_BOOST = 1.5;
-    static final double LIKE_PROBABILITY = 0.10 * INTERACTION_BOOST;
-    static final double SHARE_PROBABILITY = 0.05 * INTERACTION_BOOST;
-    static final double FAVORITE_PROBABILITY = 0.03 * INTERACTION_BOOST;
-    static final double COMMENT_PROBABILITY = 0.08 * INTERACTION_BOOST;
+    static final double LIKE_PROBABILITY = 0.03;
+    static final double SHARE_PROBABILITY = 0.006;
+    static final double FAVORITE_PROBABILITY = 0.005;
+    static final double COMMENT_PROBABILITY = 0.005;
     private static final long LOGIN_STREAM_SALT = 998_244_353L;
-    /**
-     * 每篇内容的浏览次数 = 2 + 60 × 热度权重^0.4。热度权重按最大值归一化后绝大多数很小（均值不到 0.01），
-     * 线性放大会让几乎所有内容只有 1 次浏览；开 0.4 次方压缩后，冷门内容 5–10 次、最热的内容约 62 次，
-     * 仍然是明显的头部效应，又给后面的 UV、点击率等分析留下足够的数据量。
-     */
+    private static final long VIEW_STREAM_SALT = 1_000_000_007L;
     /** 每个搜索点击之外，平均还有这么多条没点击的搜索。 */
     static final double NO_CLICK_SEARCH_PER_CLICK = 0.4;
-    static final int VIEW_BASE = 2;
-    static final double VIEW_PEAK = 60;
-    static final double VIEW_EXPONENT = 0.4;
+    /** 未点击曝光的观看者优先取同领域的人。 */
+    static final double IMPRESSION_SAME_DOMAIN_RATIO = 0.7;
 
     private final EmployeeRepository employeeRepository;
     private final AccountRepository accountRepository;
@@ -64,6 +59,7 @@ public class HistoricalBackfillService {
     private final SearchLogRepository searchLogRepository;
     private final ContentTagRepository contentTagRepository;
     private final LoginBatchWriter loginBatchWriter;
+    private final ViewBatchWriter viewBatchWriter;
     private final GrowthAlertRepository growthAlertRepository;
     private final GrowthTaskRepository growthTaskRepository;
 
@@ -85,6 +81,7 @@ public class HistoricalBackfillService {
                                       SearchLogRepository searchLogRepository,
                                       ContentTagRepository contentTagRepository,
                                       LoginBatchWriter loginBatchWriter,
+                                      ViewBatchWriter viewBatchWriter,
                                       GrowthAlertRepository growthAlertRepository,
                                       GrowthTaskRepository growthTaskRepository) {
         this.employeeRepository = employeeRepository;
@@ -105,6 +102,7 @@ public class HistoricalBackfillService {
         this.searchLogRepository = searchLogRepository;
         this.contentTagRepository = contentTagRepository;
         this.loginBatchWriter = loginBatchWriter;
+        this.viewBatchWriter = viewBatchWriter;
         this.growthAlertRepository = growthAlertRepository;
         this.growthTaskRepository = growthTaskRepository;
     }
@@ -164,119 +162,160 @@ public class HistoricalBackfillService {
             accountDepts.put(account.getId(), depts);
         }
         List<FollowPlanner.Edge> follows = FollowPlanner.plan(entities.getProfiles(),
-            entities.getAccounts().stream().map(a -> a.getId()).toList(), accountDepts,
+            entities.getAccounts().stream().map(a -> a.getId()).toList(), accountDepts, entities.getAccountWeights(),
             config.getHistoryStart(), config.getHistoryEnd(), random);
-        Map<Long, List<FollowPlanner.Edge>> followersByAccount = new HashMap<>();
+        Map<Long, List<FollowPlanner.Edge>> edgesByFollower = new HashMap<>();
         for (FollowPlanner.Edge edge : follows) {
             eventGenerator.generateFollow(edge.followerId(), edge.accountId(), edge.followTime(),
                 edge.unfollowTime(), config.getBatchId());
-            followersByAccount.computeIfAbsent(edge.accountId(), k -> new ArrayList<>()).add(edge);
+            edgesByFollower.computeIfAbsent(edge.followerId(), k -> new ArrayList<>()).add(edge);
         }
 
+        // 登录：画像员工沿用 PersonaLoginPlanner 的规划；RANDOM 员工按留存分型每天抽一次，
+        // 且不早于加入社区的日期。两者都用独立随机流，不扰动回填的主随机序列。
+        // 登录先于浏览规划：浏览由登录产生。
+        List<LoginEvent> loginEvents = planLogins(config, entities, activityModel);
+
+        // 浏览：每个登录日产生若干次浏览（需求驱动），时刻落在登录之后的同一天。
+        List<ViewPlanner.Candidate> candidates = new ArrayList<>();
         for (Content content : entities.getContents()) {
-            List<Comment> topLevelComments = new ArrayList<>();
-            String channelName = channelNames.get(content.getChannelId());
-            List<String> contentTags = tagsByContent.get(content.getId());
-            // 热度权重越高，围绕这篇内容产生的浏览/点赞/评论事件越多，制造头部效应。
-            int viewCount = VIEW_BASE + (int) (VIEW_PEAK * Math.pow(content.getPopularityWeight(), VIEW_EXPONENT));
-            for (int i = 0; i < viewCount; i++) {
-                // 浏览时间：半衰期约 2 天的衰减 + 周末/上班时段规律；浏览者必须已加入社区，约 70% 来自本领域。
-                LocalDateTime occurTime = ActivityModel.viewTime(content.getPublishTime(), random);
+            candidates.add(new ViewPlanner.Candidate(content.getId(), content.getPublishTime(), content.getChannelId(),
+                channelNames.get(content.getChannelId()), content.getAccountId(), content.getType(),
+                content.getPopularityWeight()));
+        }
+        ViewPlanner viewPlanner = new ViewPlanner(candidates, compositeChannelIds, edgesByFollower);
+        double[] multipliers = ViewPlanner.multipliers(entities.getProfiles());
+        Map<Long, EmployeeProfile> profileById = new HashMap<>();
+        for (EmployeeProfile profile : entities.getProfiles()) {
+            profileById.put(profile.employee().getId(), profile);
+        }
+        Map<Long, String> channelNameOfContent = new HashMap<>();
+        for (Content content : entities.getContents()) {
+            channelNameOfContent.put(content.getId(), channelNames.get(content.getChannelId()));
+        }
+        Map<LocalDate, List<EmployeeProfile>> activeByDay = new HashMap<>();
+        for (LoginEvent login : loginEvents) {
+            activeByDay.computeIfAbsent(login.time().toLocalDate(), k -> new ArrayList<>())
+                .add(entities.getProfiles().get(login.profileIndex()));
+        }
 
-                // 先抽来源，再按来源挑浏览者：关注入口从当时正在关注该账号的人里挑，挑不出就退回推荐入口。
-                SourceKind kind = SourceSampler.draw(random);
-                Set<Long> followers = new HashSet<>();
-                if (kind == SourceKind.FOLLOW_ENTRY) {
-                    for (FollowPlanner.Edge edge : followersByAccount.getOrDefault(content.getAccountId(), List.of())) {
-                        if (edge.activeAt(occurTime)) {
-                            followers.add(edge.followerId());
-                        }
-                    }
-                }
-                kind = SourceSampler.applyConstraints(kind, content.getType(), !followers.isEmpty());
-                Optional<EmployeeProfile> picked = kind == SourceKind.FOLLOW_ENTRY
-                    ? viewerPicker.pickAmong(followers, occurTime, random)
-                    : viewerPicker.pick(channelName, false, occurTime, random);
-                if (picked.isEmpty() && kind == SourceKind.FOLLOW_ENTRY) {
-                    kind = SourceKind.RECOMMEND_ENTRY;
-                    picked = viewerPicker.pick(channelName, false, occurTime, random);
-                }
-                if (picked.isEmpty()) {
-                    continue;
-                }
-                EmployeeProfile viewer = picked.get();
-                Long viewerId = viewer.employee().getId();
-                Long entryChannelId = SourceSampler.entryChannelId(kind, content.getChannelId(), compositeChannelIds);
-                ViewDetailSampler.Dwell dwell = ViewDetailSampler.sample(content.getType(), random);
-                eventGenerator.generateView(content.getId(), viewerId, occurTime, config.getBatchId(),
-                    new ViewDetail(kind.viewSource(), entryChannelId, dwell.seconds(), dwell.completed()));
-
-                if (kind.isEntry()) {
+        Random viewRandom = new Random(config.getRandomSeed() * VIEW_STREAM_SALT);
+        List<ViewBatchWriter.ViewRow> viewRows = new ArrayList<>();
+        List<ViewBatchWriter.ImpressionRow> impressionRows = new ArrayList<>();
+        List<ViewBatchWriter.SearchRow> searchRows = new ArrayList<>();
+        List<ViewPlanner.PlannedView> plannedViews = new ArrayList<>();
+        for (LoginEvent login : loginEvents) {
+            EmployeeProfile viewer = entities.getProfiles().get(login.profileIndex());
+            for (ViewPlanner.PlannedView view : viewPlanner.planLogin(viewer, login.time(),
+                multipliers[login.profileIndex()], config.getViewsPerActiveDay(), viewRandom)) {
+                plannedViews.add(view);
+                viewRows.add(new ViewBatchWriter.ViewRow(view.contentId(), view.viewerId(), view.time(),
+                    new ViewDetail(view.kind().viewSource(), view.entryChannelId(), view.dwellSeconds(), view.completed())));
+                String channelName = channelNameOfContent.get(view.contentId());
+                if (view.kind().isEntry()) {
                     // 一次点击背后还有若干"看到了但没点"的曝光，点击率 = 点击 / 曝光。
-                    int unclicked = ImpressionPlanner.unclickedImpressions(kind, random);
+                    int unclicked = ImpressionPlanner.unclickedImpressions(view.kind(), viewRandom);
                     for (int u = 0; u < unclicked; u++) {
-                        viewerPicker.pick(kind == SourceKind.OWN_ENTRY ? channelName : null, false, occurTime, random)
-                            .ifPresent(other -> eventGenerator.generateImpression(content.getId(),
-                                other.employee().getId(), entryChannelId, occurTime, false, config.getBatchId()));
+                        Optional<EmployeeProfile> other = pickActive(activeByDay.get(view.time().toLocalDate()),
+                            view.kind() == SourceKind.OWN_ENTRY ? channelName : null, viewRandom);
+                        other.ifPresent(o -> impressionRows.add(new ViewBatchWriter.ImpressionRow(
+                            o.employee().getId(), view.contentId(), view.entryChannelId(), view.time(), false)));
                     }
-                } else if (kind == SourceKind.SEARCH) {
-                    eventGenerator.generateSearch(viewerId, TagCatalog.keyword(contentTags, channelName, random),
-                        occurTime, content.getId(), config.getBatchId());
-                    if (random.nextDouble() < NO_CLICK_SEARCH_PER_CLICK) {
-                        viewerPicker.pick(null, false, occurTime, random).ifPresent(other ->
-                            eventGenerator.generateSearch(other.employee().getId(),
-                                TagCatalog.keyword(contentTags, channelName, random), occurTime, null,
-                                config.getBatchId()));
-                    }
-                }
-
-                if (viewer.lurker()) {
-                    continue;
-                }
-                if (random.nextDouble() < LIKE_PROBABILITY) {
-                    eventGenerator.generateLike(content.getId(), viewerId, occurTime, config.getBatchId());
-                }
-                if (random.nextDouble() < SHARE_PROBABILITY) {
-                    eventGenerator.generateShare(content.getId(), viewerId, occurTime, config.getBatchId());
-                }
-                if (random.nextDouble() < FAVORITE_PROBABILITY) {
-                    eventGenerator.generateFavorite(content.getId(), viewerId, occurTime, config.getBatchId());
-                }
-                if (random.nextDouble() < COMMENT_PROBABILITY) {
-                    Comment comment;
-                    if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
-                        Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
-                        LocalDateTime replyTime = ActivityModel.viewTime(parent.getCreateTime(), random);
-                        comment = eventGenerator.generateComment(
-                            content.getId(), parent.getId(), viewerId, replyTime, config.getBatchId());
-                    } else {
-                        comment = eventGenerator.generateComment(
-                            content.getId(), null, viewerId, occurTime, config.getBatchId());
-                        topLevelComments.add(comment);
-                    }
-                    if (random.nextDouble() < 0.3) {
-                        LocalDateTime likeTime = ActivityModel.viewTime(comment.getCreateTime(), random);
-                        Optional<EmployeeProfile> commentLiker =
-                            viewerPicker.pick(channelName, true, likeTime, random);
-                        commentLiker.ifPresent(liker -> eventGenerator.generateCommentLike(
-                            comment.getId(), liker.employee().getId(), likeTime, config.getBatchId()));
+                } else if (view.kind() == SourceKind.SEARCH) {
+                    searchRows.add(new ViewBatchWriter.SearchRow(view.viewerId(),
+                        TagCatalog.keyword(tagsByContent.get(view.contentId()), channelName, viewRandom),
+                        view.time(), view.contentId()));
+                    if (viewRandom.nextDouble() < NO_CLICK_SEARCH_PER_CLICK) {
+                        pickActive(activeByDay.get(view.time().toLocalDate()), null, viewRandom).ifPresent(other ->
+                            searchRows.add(new ViewBatchWriter.SearchRow(other.employee().getId(),
+                                TagCatalog.keyword(tagsByContent.get(view.contentId()), channelName, viewRandom),
+                                view.time(), null)));
                     }
                 }
             }
         }
 
-        // 登录：画像员工沿用 PersonaLoginPlanner 的规划；RANDOM 员工按留存分型每天抽一次，
-        // 且不早于加入社区的日期。两者都用独立随机流，不扰动回填的主随机序列。
-        // 登录占了绝大多数行，先收集起来最后用 JDBC 批量写入（内容和 generateLogin 完全一样）。
-        List<LoginBatchWriter.Login> logins = new ArrayList<>();
+        Map<Long, List<Long>> authorsByContent = new HashMap<>();
+        for (ContentAuthor author : contentAuthorRepository.findAll()) {
+            authorsByContent.computeIfAbsent(author.getContentId(), k -> new ArrayList<>()).add(author.getEmployeeId());
+        }
+        viewBatchWriter.writeViews(viewRows, authorsByContent, eventGenerator.viewWeight(),
+            eventGenerator.contentViewedWeight(), config.getBatchId());
+        viewBatchWriter.writeImpressions(impressionRows, config.getBatchId());
+        viewBatchWriter.writeSearches(searchRows, config.getBatchId());
+
+        // 互动：只发生在非沉默读者身上，在看过之后；回复和评论点赞的时间不能越过历史结束日。
+        LocalDateTime historyEndTime = config.getHistoryEnd().atStartOfDay();
+        Map<Long, List<Comment>> topLevelComments = new HashMap<>();
+        for (ViewPlanner.PlannedView view : plannedViews) {
+            EmployeeProfile viewer = profileById.get(view.viewerId());
+            if (viewer.lurker()) {
+                continue;
+            }
+            long contentId = view.contentId();
+            long viewerId = view.viewerId();
+            LocalDateTime occurTime = view.time();
+            if (random.nextDouble() < LIKE_PROBABILITY) {
+                eventGenerator.generateLike(contentId, viewerId, occurTime, config.getBatchId());
+            }
+            if (random.nextDouble() < SHARE_PROBABILITY) {
+                eventGenerator.generateShare(contentId, viewerId, occurTime, config.getBatchId());
+            }
+            if (random.nextDouble() < FAVORITE_PROBABILITY) {
+                eventGenerator.generateFavorite(contentId, viewerId, occurTime, config.getBatchId());
+            }
+            if (random.nextDouble() < COMMENT_PROBABILITY) {
+                List<Comment> existing = topLevelComments.computeIfAbsent(contentId, k -> new ArrayList<>());
+                Comment comment;
+                if (!existing.isEmpty() && random.nextDouble() < 0.3) {
+                    Comment parent = existing.get(random.nextInt(existing.size()));
+                    LocalDateTime replyTime = ActivityModel.viewTime(parent.getCreateTime(), random);
+                    if (!replyTime.isBefore(historyEndTime)) {
+                        continue;
+                    }
+                    comment = eventGenerator.generateComment(contentId, parent.getId(), viewerId, replyTime,
+                        config.getBatchId());
+                } else {
+                    comment = eventGenerator.generateComment(contentId, null, viewerId, occurTime, config.getBatchId());
+                    existing.add(comment);
+                }
+                if (random.nextDouble() < 0.3) {
+                    LocalDateTime likeTime = ActivityModel.viewTime(comment.getCreateTime(), random);
+                    if (likeTime.isBefore(historyEndTime)) {
+                        viewerPicker.pick(channelNameOfContent.get(contentId), true, likeTime, random)
+                            .ifPresent(liker -> eventGenerator.generateCommentLike(comment.getId(),
+                                liker.employee().getId(), likeTime, config.getBatchId()));
+                    }
+                }
+            }
+        }
+
+        // 登录占了绝大多数行，最后用 JDBC 批量写入（内容和 generateLogin 完全一样）。
+        loginBatchWriter.write(loginEvents.stream()
+            .map(e -> new LoginBatchWriter.Login(entities.getProfiles().get(e.profileIndex()).employee().getId(), e.time()))
+            .toList(), eventGenerator.loginWeight(), config.getBatchId());
+
+        EditorialPickGenerator editorialPickGenerator = new EditorialPickGenerator(
+            contentAuthorRepository, editorialPickLogRepository,
+            pointsWeightConfigRepository, pointsLedgerRepository, random);
+        int pickCount = Math.max(1, entities.getContents().size() / 20);
+        editorialPickGenerator.pickTopContent(entities.getContents(), pickCount,
+            config.getHistoryEnd().atStartOfDay(), config.getBatchId());
+    }
+
+    private record LoginEvent(int profileIndex, LocalDateTime time) {
+    }
+
+    private List<LoginEvent> planLogins(SimulationConfig config, EntityGenerator.GeneratedEntities entities,
+                                        ActivityModel activityModel) {
+        List<LoginEvent> logins = new ArrayList<>();
         for (int employeeIndex = 0; employeeIndex < entities.getProfiles().size(); employeeIndex++) {
             EmployeeProfile profile = entities.getProfiles().get(employeeIndex);
-            Long employeeId = profile.employee().getId();
             if (profile.persona() != BloggerPersona.RANDOM) {
                 Random personaRandom = new Random(config.getRandomSeed() * 1_000_003L + employeeIndex);
-                for (LocalDateTime loginTime : PersonaLoginPlanner.plan(
-                        profile.persona(), config.getHistoryStart(), config.getHistoryEnd(), personaRandom)) {
-                    logins.add(new LoginBatchWriter.Login(employeeId, loginTime));
+                for (LocalDateTime loginTime : PersonaLoginPlanner.plan(profile.persona(), config.getHistoryStart(),
+                        config.getHistoryEnd(), profile.joinDate(), personaRandom)) {
+                    logins.add(new LoginEvent(employeeIndex, loginTime));
                 }
                 continue;
             }
@@ -285,19 +324,30 @@ public class HistoricalBackfillService {
                 ? profile.joinDate() : config.getHistoryStart();
             for (LocalDate day = firstDay; day.isBefore(config.getHistoryEnd()); day = day.plusDays(1)) {
                 if (loginRandom.nextDouble() < activityModel.dailyActivity(profile, day)) {
-                    logins.add(new LoginBatchWriter.Login(employeeId, ActivityModel.timeOfDay(day, loginRandom)));
+                    logins.add(new LoginEvent(employeeIndex, ActivityModel.timeOfDay(day, loginRandom)));
                 }
             }
         }
+        return logins;
+    }
 
-        loginBatchWriter.write(logins, eventGenerator.loginWeight(), config.getBatchId());
-
-        EditorialPickGenerator editorialPickGenerator = new EditorialPickGenerator(
-            contentAuthorRepository, editorialPickLogRepository,
-            pointsWeightConfigRepository, pointsLedgerRepository, random);
-        int pickCount = Math.max(1, entities.getContents().size() / 20);
-        editorialPickGenerator.pickTopContent(entities.getContents(), pickCount,
-            config.getHistoryEnd().atStartOfDay(), config.getBatchId());
+    /** 从某天登录过的员工里随机挑一个；preferredDept 非空时 70% 优先同领域。 */
+    private static Optional<EmployeeProfile> pickActive(List<EmployeeProfile> active, String preferredDept, Random random) {
+        if (active == null || active.isEmpty()) {
+            return Optional.empty();
+        }
+        if (preferredDept != null && random.nextDouble() < IMPRESSION_SAME_DOMAIN_RATIO) {
+            List<EmployeeProfile> sameDomain = new ArrayList<>();
+            for (EmployeeProfile profile : active) {
+                if (preferredDept.equals(profile.employee().getDept())) {
+                    sameDomain.add(profile);
+                }
+            }
+            if (!sameDomain.isEmpty()) {
+                return Optional.of(sameDomain.get(random.nextInt(sameDomain.size())));
+            }
+        }
+        return Optional.of(active.get(random.nextInt(active.size())));
     }
 
     private void clearPreviousSimulationData() {

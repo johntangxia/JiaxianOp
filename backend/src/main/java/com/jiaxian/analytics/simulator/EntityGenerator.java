@@ -16,13 +16,24 @@ import java.util.Random;
 
 public class EntityGenerator {
 
-    /** 约 45% 的员工在回填开始前就已经是社区成员，其余在历史期间陆续加入。 */
-    static final double EXISTING_MEMBER_RATIO = 0.45;
+    /** RANDOM 员工里约 70% 在回填开始前就已经是社区成员，其余在历史期间陆续加入（月均新成员约 1.4%）。 */
+    static final double EXISTING_MEMBER_RATIO = 0.70;
     static final int MAX_DAYS_BEFORE_START = 730;
     /** 新成员最晚在历史结束前这么多天加入，保证他们有时间产生行为。 */
     static final int NEWCOMER_MIN_DAYS_BEFORE_END = 14;
-    /** RISING 画像的加入日：历史结束前 21–25 天（RISING 的两次登录在结束前 20 天和 1 天）。 */
+    /** RISING 画像的加入日：历史结束前 21–60 天，分散开，避免在同一时段集中加入。 */
     static final int RISING_JOIN_MIN_DAYS_BEFORE_END = 21;
+    static final int RISING_JOIN_SPREAD_DAYS = 40;
+    /** 淡出型在沉默之后有 30% 的概率回流，沉默 30–120 天后回来。 */
+    static final double RETURN_RATIO = 0.30;
+    static final int MIN_RETURN_GAP_DAYS = 30;
+    static final int RETURN_GAP_SPREAD_DAYS = 91;
+    /** 淡出起点最晚在历史结束前这么多天，保证淡出能在历史里看到。 */
+    static final int FADE_MARGIN_DAYS = 30;
+    /** 作者在内容发布前至少已经加入社区这么多天（先读后写）；历史开始前就加入的老成员不受限。 */
+    static final int AUTHOR_WARMUP_DAYS = 7;
+    /** 账号和内容归属账号的幂律指数：第 k 名账号的权重是 1/(k+1)^0.8。 */
+    static final double ACCOUNT_SKEW = 0.8;
     static final double COMMON_LURKER_RATIO = 0.35;
     static final double SAME_DOMAIN_POST_RATIO = 0.7;
     private static final double DEPT_SKEW = 0.5;
@@ -83,9 +94,15 @@ public class EntityGenerator {
 
             LocalDate activeFrom = communityJoin.isAfter(config.getHistoryStart()) ? communityJoin : config.getHistoryStart();
             boolean bloggerPersona = persona == BloggerPersona.STAR || persona == BloggerPersona.CHURNING;
-            profiles.add(new EmployeeProfile(employee, persona, archetype(random),
+            RetentionArchetype archetype = archetype(random);
+            long fadeSpan = Math.max(1, ChronoUnit.DAYS.between(activeFrom, config.getHistoryEnd()) - FADE_MARGIN_DAYS);
+            LocalDate fadeStart = activeFrom.plusDays(random.nextInt((int) fadeSpan));
+            int fadeLength = 30 + random.nextInt(61);
+            LocalDate returnDay = archetype == RetentionArchetype.FADING && random.nextDouble() < RETURN_RATIO
+                ? fadeStart.plusDays(fadeLength + MIN_RETURN_GAP_DAYS + random.nextInt(RETURN_GAP_SPREAD_DAYS)) : null;
+            profiles.add(new EmployeeProfile(employee, persona, archetype,
                 !bloggerPersona && random.nextDouble() < COMMON_LURKER_RATIO,
-                propensities[i], activeFrom.plusDays(random.nextInt(61)), 30 + random.nextInt(61)));
+                propensities[i], fadeStart, fadeLength, returnDay));
         }
         Map<Long, Employee> employeeById = new HashMap<>();
         for (Employee employee : employees) {
@@ -114,12 +131,21 @@ public class EntityGenerator {
             }
         }
 
+        // 账号的"体量"按幂律分布：头部账号发很多内容、粉丝多，尾部账号只发几篇；谁排头部是随机的
+        Map<Long, Double> accountWeights = new HashMap<>();
+        List<Account> accountRanking = new ArrayList<>(accounts);
+        Collections.shuffle(accountRanking, random);
+        for (int rank = 0; rank < accountRanking.size(); rank++) {
+            accountWeights.put(accountRanking.get(rank).getId(), 1.0 / Math.pow(rank + 1, ACCOUNT_SKEW));
+        }
+        double accountWeightTotal = accountWeights.values().stream().mapToDouble(Double::doubleValue).sum();
+
         PopularityDistribution popularityDistribution = new PopularityDistribution(random);
         List<Double> weights = popularityDistribution.generateWeights(config.getContentCount());
 
         List<Content> contents = new ArrayList<>();
         for (int i = 0; i < config.getContentCount(); i++) {
-            Account account = accounts.get(random.nextInt(accounts.size()));
+            Account account = pickAccount(accounts, accountWeights, accountWeightTotal, random);
 
             // 先确定作者，再确定发布时间：内容不能早于任何一位作者加入社区的日期。
             List<AccountMember> members = accountMemberRepository.findByAccountId(account.getId());
@@ -131,8 +157,12 @@ public class EntityGenerator {
             for (AccountMember authorMember : authorMembers) {
                 Employee author = employeeById.get(authorMember.getEmployeeId());
                 if (author != null && author.getCommunityJoinDate() != null
-                    && author.getCommunityJoinDate().isAfter(earliest)) {
-                    earliest = author.getCommunityJoinDate();
+                    && author.getCommunityJoinDate().isAfter(config.getHistoryStart())) {
+                    // 历史期间才加入的作者：先读一阵子再发帖
+                    LocalDate firstPostDay = author.getCommunityJoinDate().plusDays(AUTHOR_WARMUP_DAYS);
+                    if (firstPostDay.isAfter(earliest)) {
+                        earliest = firstPostDay;
+                    }
                 }
             }
             if (!earliest.isBefore(config.getHistoryEnd())) {
@@ -160,7 +190,19 @@ public class EntityGenerator {
             }
         }
 
-        return new GeneratedEntities(employees, accounts, contents, profiles);
+        return new GeneratedEntities(employees, accounts, contents, profiles, accountWeights);
+    }
+
+    private static Account pickAccount(List<Account> accounts, Map<Long, Double> weights, double total, Random random) {
+        double target = random.nextDouble() * total;
+        double cumulative = 0;
+        for (Account account : accounts) {
+            cumulative += weights.get(account.getId());
+            if (target < cumulative) {
+                return account;
+            }
+        }
+        return accounts.get(accounts.size() - 1);
     }
 
     /** 幂律活跃倾向：员工被随机排名，第 r 名的倾向是 1/(r+1)^0.7。 */
@@ -181,7 +223,7 @@ public class EntityGenerator {
         LocalDate start = config.getHistoryStart();
         LocalDate end = config.getHistoryEnd();
         if (persona == BloggerPersona.RISING) {
-            return end.minusDays(RISING_JOIN_MIN_DAYS_BEFORE_END + random.nextInt(5));
+            return end.minusDays(RISING_JOIN_MIN_DAYS_BEFORE_END + random.nextInt(RISING_JOIN_SPREAD_DAYS));
         }
         if (persona != BloggerPersona.RANDOM || random.nextDouble() < EXISTING_MEMBER_RATIO) {
             return start.minusDays(1 + random.nextInt(MAX_DAYS_BEFORE_START));
@@ -195,7 +237,7 @@ public class EntityGenerator {
         if (roll < 0.30) {
             return RetentionArchetype.REGULAR;
         }
-        return roll < 0.70 ? RetentionArchetype.OCCASIONAL : RetentionArchetype.FADING;
+        return roll < 0.80 ? RetentionArchetype.OCCASIONAL : RetentionArchetype.FADING;
     }
 
     /** 按 1/(i+1)^0.5 的权重挑一个领域作为员工的部门，让有的领域人多、有的人少。 */
@@ -234,9 +276,12 @@ public class EntityGenerator {
         private final List<Content> contents;
         /** 和 employees 一一对应的行为画像，仅在模拟期间使用。 */
         private final List<EmployeeProfile> profiles;
+        /** 账号 id → 体量权重（幂律），内容归属和被关注的概率都按它。 */
+        private final Map<Long, Double> accountWeights;
 
         public GeneratedEntities(List<Employee> employees, List<Account> accounts, List<Content> contents,
-                                 List<EmployeeProfile> profiles) {
+                                 List<EmployeeProfile> profiles, Map<Long, Double> accountWeights) {
+            this.accountWeights = accountWeights;
             this.employees = employees;
             this.accounts = accounts;
             this.contents = contents;
