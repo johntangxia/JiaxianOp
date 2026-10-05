@@ -1,7 +1,7 @@
 # 数据基础（频道体系与模拟真实度）· 设计方案
 
 - 日期：2026-10-05
-- 状态：待实施（实施计划见 [数据基础](../plans/2026-10-05-data-foundation.md)）
+- 状态：已实现（实施计划见 [数据基础](../plans/2026-10-05-data-foundation.md)）
 - 前置依赖：九份基础计划全部完成。本计划是"运营分析增强"路线图（计划 10–16）的第一步，后面的频道驾驶舱、竞赛榜、下钻、读者侧分析、增长闭环都建立在这里产生的数据上。
 
 ## 1. 背景与目标
@@ -71,6 +71,14 @@
 - 修改：`EntityGeneratorTest`（领域频道）、`HistoricalBackfillPersonaIT`（RANDOM 员工不再是 5–24 次登录）、`RealtimeEventPlannerTest`（加入日期过滤）、`DimensionOptionsRepositoryIT`/`DimensionControllerIT`/`smoke-test.sh`（频道数 ≥ 28）、前端 `OverviewView` 测试。
 - 其余既有的端到端测试（PV、排行榜、KOL、博主详情、实时流水线）必须继续全部通过；如果因为数据分布变化需要调整断言，修代码同时修计划文本并如实说明。
 - README 的"已知限制"和演示流程更新频道数量与加入社区的说明。
+
+## 5.1 实现时的偏差
+
+- `SchemaUpgrader` 不能用自动配置的 `JdbcTemplate`：Spring Boot 把它标记为"依赖数据库初始化"，而 `defer-datasource-initialization` 又让初始化依赖 `EntityManagerFactory`，会形成循环依赖，所以升级器直接拿 `DataSource` 自己建 `JdbcTemplate`。
+- 浏览数公式改为 `2 + 60 × 热度权重^0.4`（见第 4 节）。
+- 抽出 `ViewerPicker` 负责挑浏览者/互动者，没有放进 `ActivityModel`。
+- 验证时发现：运行着的 `jiaxian-backend` 容器和 `mvn test` 在同一个 Kafka 消费组里，会抢分区，导致 `RealtimePipelineIT` 超时；跑后端测试前先 `docker stop jiaxian-backend`。
+- 前端筛选逻辑抽成 `utils/channels.ts`（带单元测试），没有给 `OverviewView` 单独写组件测试。
 
 ## 6. 明确不做的范围（Out of Scope）
 
