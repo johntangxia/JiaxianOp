@@ -54,7 +54,7 @@ async function submit(): Promise<void> {
       </el-form-item>
       <el-form-item label="随机种子"><el-input-number v-model="form.randomSeed" /></el-form-item>
       <el-form-item label="博主画像"><el-switch v-model="form.personas" active-text="开启（明星/新人/流失/沉寂）" /></el-form-item>
-      <p class="muted hint">结束日期建议早于今天至少 30 天：回填的浏览行为会延续到内容发布后 30 天。</p>
+      <p class="muted hint">结束日期不含当天：默认是今天（数据到昨天为止），浏览由登录产生，不会越过结束日。</p>
       <el-form-item>
         <el-button type="danger" :loading="running" @click="submit">{{ running ? "回填中…" : "清空并回填" }}</el-button>
       </el-form-item>

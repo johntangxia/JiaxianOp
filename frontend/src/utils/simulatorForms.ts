@@ -10,12 +10,11 @@ export interface RealtimeForm {
 }
 
 /**
- * 回填默认值：结束日期 = 今天往前 30 天（回填的浏览行为会延续到发布后 30 天，结束得太靠近今天会产生"未来"的数据），
+ * 回填默认值：结束日期 = 今天（不含，最后一天的数据是昨天；浏览由登录产生，不会越过结束日），
  * 开始日期 = 结束日期往前 18 个月的 1 号。
  */
 export function defaultBackfillForm(today: Date = new Date()): BackfillForm {
   const end = new Date(today);
-  end.setDate(end.getDate() - 30);
   const start = new Date(end.getFullYear(), end.getMonth() - 18, 1);
   return {
     batchId: "demo",

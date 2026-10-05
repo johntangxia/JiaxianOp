@@ -8,11 +8,11 @@ import {
 } from "./simulatorForms";
 
 describe("defaultBackfillForm", () => {
-  it("ends 30 days before today and starts on the first day of the month 18 months earlier", () => {
+  it("ends today (exclusive) and starts on the first day of the month 18 months earlier", () => {
     const form = defaultBackfillForm(new Date(2026, 9, 5));
 
-    expect(form.historyEnd).toBe("2026-09-05");
-    expect(form.historyStart).toBe("2025-03-01");
+    expect(form.historyEnd).toBe("2026-10-05");
+    expect(form.historyStart).toBe("2025-04-01");
     expect(form).toMatchObject({
       batchId: "demo", employeeCount: 1000, accountCount: 100, teamAccountRatio: 0.25,
       contentCount: 1500, randomSeed: 7, personas: true,
@@ -45,7 +45,7 @@ describe("request bodies", () => {
 
     expect(body).toEqual({
       batchId: "demo", employeeCount: 1000, accountCount: 100, teamAccountRatio: 0.25, contentCount: 1500,
-      historyStart: "2025-03-01", historyEnd: "2026-09-05", randomSeed: 7, personas: true,
+      historyStart: "2025-04-01", historyEnd: "2026-10-05", randomSeed: 7, personas: true,
     });
   });
 

@@ -11,11 +11,11 @@ ACCOUNT_COUNT="${ACCOUNT_COUNT:-100}"
 CONTENT_COUNT="${CONTENT_COUNT:-1500}"
 RANDOM_SEED="${RANDOM_SEED:-7}"
 
-# 结束日期 = 今天往前 30 天（回填的浏览行为会延续到发布后 30 天，太靠近今天会产生"未来"的数据）；
+# 结束日期 = 今天（不含，数据到昨天为止；浏览由登录产生，不会越过结束日）；
 # 开始日期 = 结束日期往前 18 个月的 1 号。
 read -r HISTORY_START HISTORY_END < <(python3 - <<'PY'
 import datetime as d
-end = d.date.today() - d.timedelta(days=30)
+end = d.date.today()
 months = end.year * 12 + (end.month - 1) - 18
 print(d.date(months // 12, months % 12 + 1, 1), end)
 PY
