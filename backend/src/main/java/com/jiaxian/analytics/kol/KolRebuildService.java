@@ -29,6 +29,15 @@ public class KolRebuildService {
         this.clock = clock;
     }
 
+    /**
+     * 没有指定统计日时用的默认值：最近一次登录/发帖的日期（不晚于今天），没有数据时取今天。
+     * 模拟数据是历史的，以今天为统计日所有人都会变成沉寂；而浏览行为会延续到历史结束日之后，不能拿 PV 的最后一天估算。
+     */
+    public LocalDate defaultAsOf() {
+        LocalDate today = LocalDate.now(clock);
+        return metricsRepository.latestActivityDay().filter(day -> !day.isAfter(today)).orElse(today);
+    }
+
     @Transactional
     public KolRebuildResult rebuild(LocalDate asOf) {
         if (asOf.isAfter(LocalDate.now(clock))) {

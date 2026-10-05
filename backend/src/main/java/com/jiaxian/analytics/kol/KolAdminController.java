@@ -22,11 +22,11 @@ public class KolAdminController {
         this.clock = clock;
     }
 
-    /** asOf 默认今天，weeks 默认 1（最多 52）；weeks > 1 时从旧到新补最近几周，用于补历史。 */
+    /** asOf 默认最近一次登录/发帖的日期（没有数据时取今天），weeks 默认 1（最多 52）；weeks > 1 时从旧到新补最近几周，用于补历史。 */
     @PostMapping("/rebuild")
     public List<KolRebuildResult> rebuild(
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
         @RequestParam(defaultValue = "1") int weeks) {
-        return rebuildService.rebuildWeeks(asOf != null ? asOf : LocalDate.now(clock), weeks);
+        return rebuildService.rebuildWeeks(asOf != null ? asOf : rebuildService.defaultAsOf(), weeks);
     }
 }

@@ -56,10 +56,8 @@ call POST /api/admin/analytics/pv/rebuild
 echo "3/4 榜单快照重算 ..."
 call POST /api/admin/analytics/leaderboard/snapshot
 
-# 模拟数据是历史的：PV 数据的最后一天比模拟的"现在"晚约 30 天，所以 KOL 统计日取它往前 30 天
-PV_END=$(call GET /api/meta/pv-range | python3 -c 'import json, sys; print(json.load(sys.stdin)["to"])')
-KOL_AS_OF=$(python3 -c "import datetime as d; print(d.date.fromisoformat('$PV_END') - d.timedelta(days=30))")
-echo "4/4 KOL 重算（统计日 $KOL_AS_OF，12 周）..."
-call POST "/api/admin/analytics/kol/rebuild?asOf=$KOL_AS_OF&weeks=12" > /dev/null
+# 不传统计日：后端默认取最近一次登录/发帖的日期（模拟的"现在"），以今天为统计日所有人都会变成沉寂
+echo "4/4 KOL 重算（统计日取最近一次登录/发帖的日期，12 周）..."
+call POST "/api/admin/analytics/kol/rebuild?weeks=12" > /dev/null
 
 echo "演示数据已就绪。"

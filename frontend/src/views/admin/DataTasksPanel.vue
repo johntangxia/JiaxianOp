@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { fetchPvRange } from "../../api/analytics";
 import { rebuildPv, snapshotAllLeaderboards } from "../../api/admin";
 import { rebuildKol } from "../../api/kol";
-import { kolAsOfFromPvEnd } from "../../utils/simulatorForms";
 
 type Status = "pending" | "running" | "done" | "error";
 interface Step {
@@ -115,10 +113,8 @@ async function runAll(): Promise<void> {
       return `写入 ${result.rowsWritten} 行汇总`;
     });
     await runStep(1, runSnapshot);
-    // 模拟数据是历史的：以今天为统计日所有人都会变成沉寂；而 PV 数据的最后一天又比模拟的"现在"晚约 30 天
-    // （回填的浏览行为会延续到发布后 30 天），所以统计日取它往前 30 天
-    const range = await fetchPvRange().catch(() => null);
-    await runStep(2, () => runKol(range?.to ? kolAsOfFromPvEnd(range.to) : undefined, 12));
+    // 不传统计日：后端默认取最近一次登录/发帖的日期（模拟的"现在"），以今天为统计日所有人都会变成沉寂
+    await runStep(2, () => runKol(undefined, 12));
   } catch {
     // 失败的那一步已经记录了原因，后面的步骤不再执行
   } finally {

@@ -36,6 +36,13 @@ public class KolMetricsRepository {
         this.jdbc = jdbc;
     }
 
+    /** 最近一次登录或发帖发生的日期；没有任何记录时为空。模拟数据里它就是模拟的"现在"。 */
+    public java.util.Optional<LocalDate> latestActivityDay() {
+        Timestamp latest = jdbc.queryForObject(
+            "SELECT MAX(occur_time) FROM active_action_log WHERE action_type IN ('LOGIN', 'POST')", Timestamp.class);
+        return java.util.Optional.ofNullable(latest).map(t -> t.toLocalDateTime().toLocalDate());
+    }
+
     public List<BloggerMetrics> loadPopulation(LocalDate asOf, KolProperties props) {
         if (props.getTopN() < 1) {
             // LIMIT 以字面量写进 SQL，必须确认是安全的正整数。
