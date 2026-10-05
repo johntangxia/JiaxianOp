@@ -147,6 +147,18 @@ class CreatorServiceTest {
     }
 
     @Test
+    void rankingExportReturnsEveryCreatorInTheRankingOrderAndValidates() {
+        rankingFixture();
+
+        List<CreatorRow> all = service.rankingExport(FROM, TO, "POSTS", null);
+
+        assertThat(all).extracting(CreatorRow::employeeId).containsExactly(1L, 3L, 2L);
+        assertThat(service.rankingExport(FROM, TO, null, "甲")).extracting(CreatorRow::employeeId).containsExactly(1L, 3L);
+        assertThatThrownBy(() -> service.rankingExport(TO, FROM, null, null)).isInstanceOf(InvalidPeopleQueryException.class);
+        assertThatThrownBy(() -> service.rankingExport(FROM, TO, "NAME", null)).isInstanceOf(InvalidPeopleQueryException.class);
+    }
+
+    @Test
     void rankingFiltersByDeptAndPages() {
         rankingFixture();
 

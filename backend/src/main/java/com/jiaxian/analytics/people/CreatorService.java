@@ -87,10 +87,6 @@ public class CreatorService {
 
     public CreatorRankingReport ranking(LocalDate from, LocalDate to, String sort, String dept, Integer limit, Integer offset) {
         validate(from, to);
-        String sortKey = sort == null || sort.isBlank() ? "PV" : sort.trim().toUpperCase();
-        if (!SORTS.contains(sortKey)) {
-            throw new InvalidPeopleQueryException("sort must be one of " + String.join(", ", new java.util.TreeSet<>(SORTS)));
-        }
         int pageSize = limit != null ? limit : DEFAULT_LIMIT;
         int skip = offset != null ? offset : 0;
         if (pageSize < 1 || pageSize > MAX_LIMIT) {
@@ -99,6 +95,27 @@ public class CreatorService {
         if (skip < 0) {
             throw new InvalidPeopleQueryException("offset must not be negative");
         }
+        String sortKey = checkedSort(sort);
+        List<CreatorRow> rows = rankingRows(from, to, sortKey, dept);
+        List<CreatorRow> page = rows.stream().skip(skip).limit(pageSize).toList();
+        return new CreatorRankingReport(from, to, sortKey, rows.size(), pageSize, skip, page, readers.depts());
+    }
+
+    /** 区间内全部创作者（不分页），导出 CSV 用；排序和部门筛选同 {@link #ranking}。 */
+    public List<CreatorRow> rankingExport(LocalDate from, LocalDate to, String sort, String dept) {
+        validate(from, to);
+        return rankingRows(from, to, checkedSort(sort), dept);
+    }
+
+    private static String checkedSort(String sort) {
+        String sortKey = sort == null || sort.isBlank() ? "PV" : sort.trim().toUpperCase();
+        if (!SORTS.contains(sortKey)) {
+            throw new InvalidPeopleQueryException("sort must be one of " + String.join(", ", new java.util.TreeSet<>(SORTS)));
+        }
+        return sortKey;
+    }
+
+    private List<CreatorRow> rankingRows(LocalDate from, LocalDate to, String sortKey, String dept) {
         String deptFilter = dept == null || dept.isBlank() ? null : dept.trim();
 
         Map<Long, Long> posts = postsByCreator(from, to);
@@ -125,8 +142,7 @@ public class CreatorService {
                 followers.getOrDefault(member.id(), 0L)));
         }
         rows.sort(comparator(sortKey));
-        List<CreatorRow> page = rows.stream().skip(skip).limit(pageSize).toList();
-        return new CreatorRankingReport(from, to, sortKey, rows.size(), pageSize, skip, page, readers.depts());
+        return rows;
     }
 
     private static Comparator<CreatorRow> comparator(String sort) {

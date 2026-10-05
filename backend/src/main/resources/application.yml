@@ -57,3 +57,8 @@ analytics:
     rebuild-cron: "0 0 1 * * MON"
     schedule:
       enabled: true
+  growth:
+    # 告警每天早上 7 点自动重算（幂等）；手动重算仍然可用
+    alert-cron: "0 0 7 * * *"
+    schedule:
+      enabled: true

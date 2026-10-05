@@ -7,7 +7,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.jiaxian.analytics.export.CsvWriter;
+import org.springframework.http.ResponseEntity;
+
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/creators")
@@ -39,6 +45,27 @@ public class CreatorController {
         @RequestParam(required = false) Integer limit,
         @RequestParam(required = false) Integer offset) {
         return service.ranking(from, to, sort, dept, limit, offset);
+    }
+
+    /** 创作者排行导出 CSV（全部，不分页）：参数、排序和部门筛选同排行接口。 */
+    @GetMapping("/ranking/export")
+    public ResponseEntity<byte[]> rankingExport(
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+        @RequestParam(required = false) String sort,
+        @RequestParam(required = false) String dept) {
+        List<List<?>> rows = new ArrayList<>();
+        int rank = 1;
+        for (CreatorRow row : service.rankingExport(from, to, sort, dept)) {
+            rows.add(Arrays.asList(rank++, row.employeeId(), row.name(), row.dept(), row.posts(), row.pv(), row.uv(),
+                row.interactions(), percent(row.interactionRate()), percent(row.completionRate()), row.newFollowers()));
+        }
+        return CsvWriter.download("创作者排行_" + from + "_" + to + ".csv",
+            List.of("排名", "员工ID", "姓名", "部门", "发帖数", "PV", "UV", "互动数", "互动率", "读完率", "新增关注"), rows);
+    }
+
+    static String percent(Double value) {
+        return value == null ? null : String.format(java.util.Locale.ROOT, "%.1f%%", value * 100);
     }
 
     /** 成长阶梯：截至 asOf（默认最近一次登录/发帖日）每个成员所处的最高阶段，以及到达率和耗时。 */

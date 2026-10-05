@@ -101,6 +101,16 @@ public class ReaderService {
         return new SegmentReport(from, to, members, segments);
     }
 
+    /** 导出 CSV 的行数上限，防止一次拉出过大的结果。 */
+    static final int MAX_EXPORT_ROWS = 50_000;
+
+    /** 区间内全部沉默读者（不分页，最多 {@link #MAX_EXPORT_ROWS} 行），导出 CSV 用。 */
+    public List<ReaderQueryRepository.Lurker> lurkersExport(LocalDate from, LocalDate to, String dept) {
+        validate(from, to);
+        String deptFilter = dept == null || dept.isBlank() ? null : dept.trim();
+        return repository.lurkers(from, to, deptFilter, MAX_EXPORT_ROWS, 0).lurkers();
+    }
+
     public LurkerReport lurkers(LocalDate from, LocalDate to, String dept, Integer limit, Integer offset) {
         validate(from, to);
         int pageSize = limit != null ? limit : DEFAULT_LURKER_LIMIT;

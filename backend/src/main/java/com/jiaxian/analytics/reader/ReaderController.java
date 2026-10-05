@@ -7,7 +7,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.jiaxian.analytics.export.CsvWriter;
+import org.springframework.http.ResponseEntity;
+
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/readers")
@@ -58,6 +64,21 @@ public class ReaderController {
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return service.segments(from, to);
+    }
+
+    /** 沉默读者名单导出 CSV（全部，不分页）：列和名单一致。 */
+    @GetMapping("/lurkers/export")
+    public ResponseEntity<byte[]> lurkersExport(
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+        @RequestParam(required = false) String dept) {
+        List<List<?>> rows = new ArrayList<>();
+        for (ReaderQueryRepository.Lurker lurker : service.lurkersExport(from, to, dept)) {
+            rows.add(Arrays.asList(lurker.employeeId(), lurker.name(), lurker.dept(), lurker.joinDate(), lurker.views(),
+                lurker.activeDays(), lurker.lastActive()));
+        }
+        return CsvWriter.download("沉默读者_" + from + "_" + to + ".csv",
+            List.of("员工ID", "姓名", "部门", "加入社区", "浏览次数", "活跃天数", "最近活跃"), rows);
     }
 
     /** 沉默读者名单（展示姓名）：limit 1–100，默认 20；dept 可选。 */

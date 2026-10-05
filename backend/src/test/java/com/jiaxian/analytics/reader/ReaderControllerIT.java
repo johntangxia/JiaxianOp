@@ -68,6 +68,18 @@ class ReaderControllerIT {
     }
 
     @Test
+    void lurkerExportReturnsACsvWithBomAndHeader() {
+        ResponseEntity<byte[]> response = rest.getForEntity(url("/api/readers/lurkers/export?" + RANGE), byte[].class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getHeaders().getContentType().toString()).startsWith("text/csv");
+        String body = new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(body).startsWith("\uFEFF员工ID,姓名,部门,加入社区,浏览次数,活跃天数,最近活跃\r\n");
+        assertThat(rest.getForEntity(url("/api/readers/lurkers/export?from=2019-06-30&to=2019-06-01"), String.class)
+            .getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
     void invalidRequestsGetA400WithAReason() {
         for (String path : new String[] {
             "/api/readers/activity?from=2019-06-30&to=2019-06-01",

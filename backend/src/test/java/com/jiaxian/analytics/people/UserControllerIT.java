@@ -53,6 +53,22 @@ class UserControllerIT {
     }
 
     @Test
+    void exportReturnsACsvWithBomHeaderAndOneRowPerUser() {
+        ResponseEntity<byte[]> response = rest.getForEntity("http://localhost:" + port
+            + "/api/users/export?asOf=2019-06-30&sort=VIEWS", byte[].class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getHeaders().getContentType().toString()).startsWith("text/csv");
+        assertThat(response.getHeaders().getFirst("Content-Disposition")).startsWith("attachment");
+        String body = new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(body).startsWith("\uFEFF员工ID,姓名,部门,加入社区,生命周期,价值分层,最近活跃");
+        long members = json("/api/users/list?asOf=2019-06-30&limit=1").get("total").asLong();
+        assertThat(body.split("\r\n")).hasSize((int) members + 1);
+        assertThat(rest.getForEntity("http://localhost:" + port + "/api/users/export?stage=SLEEPY", String.class)
+            .getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
     void unknownEmployeeIs404AndBadRequestsAre400() {
         ResponseEntity<String> missing = rest.getForEntity("http://localhost:" + port + "/api/users/-5", String.class);
         assertThat(missing.getStatusCode().value()).isEqualTo(404);

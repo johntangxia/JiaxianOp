@@ -7,7 +7,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.jiaxian.analytics.export.CsvWriter;
+import org.springframework.http.ResponseEntity;
+
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -51,6 +57,26 @@ public class UserController {
         @RequestParam(required = false) Integer limit,
         @RequestParam(required = false) Integer offset) {
         return service.list(asOf, stage, value, dept, q, sort, limit, offset);
+    }
+
+    /** 用户列表导出 CSV（全部符合条件的用户，不分页）：筛选和排序同用户列表接口。 */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export(
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
+        @RequestParam(required = false) String stage,
+        @RequestParam(required = false) String value,
+        @RequestParam(required = false) String dept,
+        @RequestParam(required = false) String q,
+        @RequestParam(required = false) String sort) {
+        UserService.Listing listing = service.export(asOf, stage, value, dept, q, sort);
+        List<List<?>> rows = new ArrayList<>();
+        for (UserListReport.UserRow row : listing.rows()) {
+            rows.add(Arrays.asList(row.employeeId(), row.name(), row.dept(), row.joinDate(), row.stageLabel(),
+                row.valueLabel(), row.lastActive(), row.activeDays(), row.views(), row.interactions(), row.posts()));
+        }
+        return CsvWriter.download("用户列表_" + listing.asOf() + ".csv",
+            List.of("员工ID", "姓名", "部门", "加入社区", "生命周期", "价值分层", "最近活跃", "近90天活跃天数", "近90天浏览",
+                "近90天互动", "近90天发帖"), rows);
     }
 
     /** 用户 360；员工不存在返回 404。 */

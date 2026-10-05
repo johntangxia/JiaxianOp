@@ -186,6 +186,25 @@ class UserServiceTest {
     }
 
     @Test
+    void exportReturnsEveryMatchingUserWithoutPagingInTheSameOrderAsTheList() {
+        UserService.Listing all = service.export(AS_OF, null, null, null, null, "VIEWS");
+        UserListReport firstPage = service.list(AS_OF, null, null, null, null, "VIEWS", 2, null);
+
+        assertThat(all.asOf()).isEqualTo(AS_OF);
+        assertThat(all.rows()).hasSize(6);
+        assertThat(all.rows().subList(0, 2)).isEqualTo(firstPage.users());
+        assertThat(service.export(AS_OF, "ACTIVE", null, null, null, null).rows()).extracting(UserListReport.UserRow::employeeId)
+            .containsExactly(1L);
+        assertThat(service.export(AS_OF, null, null, "乙", "员工", null).rows()).hasSize(3);
+    }
+
+    @Test
+    void exportValidatesTheSameFiltersAsTheList() {
+        assertThatThrownBy(() -> service.export(AS_OF, "SLEEPY", null, null, null, null)).isInstanceOf(InvalidPeopleQueryException.class);
+        assertThatThrownBy(() -> service.export(AS_OF, null, null, null, null, "NAME")).isInstanceOf(InvalidPeopleQueryException.class);
+    }
+
+    @Test
     void listRejectsBadParameters() {
         assertThatThrownBy(() -> service.list(AS_OF, "SLEEPY", null, null, null, null, null, null)).isInstanceOf(InvalidPeopleQueryException.class);
         assertThatThrownBy(() -> service.list(AS_OF, null, "GOLD", null, null, null, null, null)).isInstanceOf(InvalidPeopleQueryException.class);

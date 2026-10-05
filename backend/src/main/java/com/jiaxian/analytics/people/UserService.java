@@ -218,12 +218,6 @@ public class UserService {
 
     public UserListReport list(LocalDate asOfParam, String stage, String value, String dept, String q, String sort,
                                Integer limit, Integer offset) {
-        LifecycleStage stageFilter = parseEnum(LifecycleStage.class, stage, "stage");
-        ValueSegment valueFilter = parseEnum(ValueSegment.class, value, "value");
-        String sortKey = sort == null || sort.isBlank() ? "LAST_ACTIVE" : sort.trim().toUpperCase();
-        if (!SORTS.contains(sortKey)) {
-            throw new InvalidPeopleQueryException("sort must be one of " + String.join(", ", new java.util.TreeSet<>(SORTS)));
-        }
         int pageSize = limit != null ? limit : DEFAULT_LIMIT;
         int skip = offset != null ? offset : 0;
         if (pageSize < 1 || pageSize > MAX_LIMIT) {
@@ -231,6 +225,26 @@ public class UserService {
         }
         if (skip < 0) {
             throw new InvalidPeopleQueryException("offset must not be negative");
+        }
+        Listing listing = listing(asOfParam, stage, value, dept, q, sort);
+        List<UserListReport.UserRow> page = listing.rows().stream().skip(skip).limit(pageSize).toList();
+        return new UserListReport(listing.asOf(), listing.rows().size(), pageSize, skip, page, readers.depts());
+    }
+
+    /** 符合条件的全部用户（不分页），导出 CSV 用；筛选和排序规则同 {@link #list}。 */
+    public Listing export(LocalDate asOfParam, String stage, String value, String dept, String q, String sort) {
+        return listing(asOfParam, stage, value, dept, q, sort);
+    }
+
+    public record Listing(LocalDate asOf, List<UserListReport.UserRow> rows) {
+    }
+
+    private Listing listing(LocalDate asOfParam, String stage, String value, String dept, String q, String sort) {
+        LifecycleStage stageFilter = parseEnum(LifecycleStage.class, stage, "stage");
+        ValueSegment valueFilter = parseEnum(ValueSegment.class, value, "value");
+        String sortKey = sort == null || sort.isBlank() ? "LAST_ACTIVE" : sort.trim().toUpperCase();
+        if (!SORTS.contains(sortKey)) {
+            throw new InvalidPeopleQueryException("sort must be one of " + String.join(", ", new java.util.TreeSet<>(SORTS)));
         }
         String deptFilter = dept == null || dept.isBlank() ? null : dept.trim();
         String nameFilter = q == null || q.isBlank() ? null : q.trim().toLowerCase();
@@ -252,8 +266,7 @@ public class UserService {
                 a == null ? 0 : a.views(), a == null ? 0 : a.interactions(), a == null ? 0 : a.posts()));
         }
         rows.sort(rowComparator(sortKey));
-        List<UserListReport.UserRow> page = rows.stream().skip(skip).limit(pageSize).toList();
-        return new UserListReport(asOf, rows.size(), pageSize, skip, page, readers.depts());
+        return new Listing(asOf, rows);
     }
 
     private static <E extends Enum<E>> E parseEnum(Class<E> type, String text, String name) {

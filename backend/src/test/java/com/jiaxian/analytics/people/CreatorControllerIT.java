@@ -59,6 +59,21 @@ class CreatorControllerIT {
     }
 
     @Test
+    void rankingExportReturnsACsvWithBomAndHeader() {
+        ResponseEntity<byte[]> response = rest.getForEntity("http://localhost:" + port
+            + "/api/creators/ranking/export?" + RANGE + "&sort=POSTS", byte[].class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getHeaders().getContentType().toString()).startsWith("text/csv");
+        String body = new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(body).startsWith("\uFEFF排名,员工ID,姓名,部门,发帖数,PV,UV,互动数,互动率,读完率,新增关注\r\n");
+        assertThat(rest.getForEntity("http://localhost:" + port + "/api/creators/ranking/export?" + RANGE + "&sort=NAME",
+            String.class).getStatusCode().value()).isEqualTo(400);
+        assertThat(rest.getForEntity("http://localhost:" + port + "/api/creators/ranking/export?to=2019-06-30",
+            String.class).getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
     void invalidRequestsGetA400WithAReason() {
         for (String path : new String[] {
             "/api/creators/overview?from=2019-06-30&to=2019-06-01",
