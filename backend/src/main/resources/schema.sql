@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS employee (
     name                VARCHAR(100) NOT NULL,
     dept                VARCHAR(100),
     join_date           DATE,
+    community_join_date DATE,
     simulation_batch_id VARCHAR(64)
 );
 
