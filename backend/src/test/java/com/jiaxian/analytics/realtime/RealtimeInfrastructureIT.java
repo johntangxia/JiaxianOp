@@ -17,15 +17,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RealtimeInfrastructureIT {
 
     @Autowired private KafkaAdmin kafkaAdmin;
+    @org.springframework.beans.factory.annotation.Value("${realtime.topic}") private String topic;
     @Autowired private StringRedisTemplate redisTemplate;
 
     @Test
     void communityEventsTopicExistsWithThreePartitions() throws Exception {
         try (AdminClient adminClient = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
             TopicDescription description = adminClient
-                .describeTopics(List.of(RealtimeConfig.COMMUNITY_EVENTS_TOPIC))
+                .describeTopics(List.of(topic))
                 .allTopicNames().get(30, TimeUnit.SECONDS)
-                .get(RealtimeConfig.COMMUNITY_EVENTS_TOPIC);
+                .get(topic);
 
             assertThat(description.partitions()).hasSize(3);
         }

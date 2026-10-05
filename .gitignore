@@ -15,3 +15,6 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+# 演示数据快照（scripts/demo-snapshot.sh，几百 MB）
+.demo-snapshots/

@@ -77,6 +77,18 @@ class RealtimeEventProducerTest {
     }
 
     @Test
+    void publishBatchUsesTheConfiguredTopic() {
+        stubSend();
+        RealtimeEventProducer custom = new RealtimeEventProducer(kafkaTemplate, employeeRepository, contentRepository,
+            commentRepository, channelRepository, new RealtimeEventPlanner(new java.util.Random(1)), "custom-topic");
+
+        custom.publishBatch(config(5), employees(), contents(), java.util.Map.of());
+
+        verify(kafkaTemplate, times(5)).send(eq("custom-topic"), org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any(RealtimeEvent.class));
+    }
+
+    @Test
     void publishBatchSendsOneKeyedMessagePerPlannedEvent() {
         stubSend();
 

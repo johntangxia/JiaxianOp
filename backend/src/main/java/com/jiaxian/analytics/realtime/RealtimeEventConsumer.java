@@ -21,7 +21,7 @@ public class RealtimeEventConsumer {
         this.counterUpdater = counterUpdater;
     }
 
-    @KafkaListener(topics = RealtimeConfig.COMMUNITY_EVENTS_TOPIC,
+    @KafkaListener(topics = "${realtime.topic:" + RealtimeConfig.COMMUNITY_EVENTS_TOPIC + "}",
         autoStartup = "${realtime.consumer.auto-startup:true}")
     public void onEvent(RealtimeEvent event) {
         try {

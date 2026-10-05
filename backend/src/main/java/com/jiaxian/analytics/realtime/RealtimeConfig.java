@@ -13,6 +13,7 @@ import com.jiaxian.analytics.repository.PvLogRepository;
 import com.jiaxian.analytics.repository.SearchLogRepository;
 import com.jiaxian.analytics.simulator.BehaviorEventGenerator;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
@@ -22,11 +23,12 @@ import java.util.Random;
 @Configuration
 public class RealtimeConfig {
 
+    /** 默认的事件主题名；用 realtime.topic 覆盖（测试用独立的主题，避免和演示环境的后端互相消费）。 */
     public static final String COMMUNITY_EVENTS_TOPIC = "community-events";
 
     @Bean
-    public NewTopic communityEventsTopic() {
-        return TopicBuilder.name(COMMUNITY_EVENTS_TOPIC).partitions(3).replicas(1).build();
+    public NewTopic communityEventsTopic(@Value("${realtime.topic:" + COMMUNITY_EVENTS_TOPIC + "}") String topic) {
+        return TopicBuilder.name(topic).partitions(3).replicas(1).build();
     }
 
     /** 复用 Plan 1 的积分引擎；它本身没有可变状态，可以作为单例在消费线程里共用。 */

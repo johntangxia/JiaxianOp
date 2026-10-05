@@ -10,6 +10,7 @@ import com.jiaxian.analytics.repository.EmployeeRepository;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,7 @@ public class RealtimeEventProducer {
     private final CommentRepository commentRepository;
     private final ChannelRepository channelRepository;
     private final RealtimeEventPlanner planner;
+    private final String topic;
 
     private final AtomicLong sentCount = new AtomicLong();
     private ScheduledExecutorService executor;
@@ -45,9 +47,10 @@ public class RealtimeEventProducer {
                                  EmployeeRepository employeeRepository,
                                  ContentRepository contentRepository,
                                  CommentRepository commentRepository,
-                                 ChannelRepository channelRepository) {
+                                 ChannelRepository channelRepository,
+                                 @Value("${realtime.topic:" + RealtimeConfig.COMMUNITY_EVENTS_TOPIC + "}") String topic) {
         this(kafkaTemplate, employeeRepository, contentRepository, commentRepository, channelRepository,
-            new RealtimeEventPlanner(new Random()));
+            new RealtimeEventPlanner(new Random()), topic);
     }
 
     RealtimeEventProducer(KafkaTemplate<String, RealtimeEvent> kafkaTemplate,
@@ -56,6 +59,18 @@ public class RealtimeEventProducer {
                           CommentRepository commentRepository,
                           ChannelRepository channelRepository,
                           RealtimeEventPlanner planner) {
+        this(kafkaTemplate, employeeRepository, contentRepository, commentRepository, channelRepository, planner,
+            RealtimeConfig.COMMUNITY_EVENTS_TOPIC);
+    }
+
+    RealtimeEventProducer(KafkaTemplate<String, RealtimeEvent> kafkaTemplate,
+                          EmployeeRepository employeeRepository,
+                          ContentRepository contentRepository,
+                          CommentRepository commentRepository,
+                          ChannelRepository channelRepository,
+                          RealtimeEventPlanner planner,
+                          String topic) {
+        this.topic = topic;
         this.kafkaTemplate = kafkaTemplate;
         this.employeeRepository = employeeRepository;
         this.contentRepository = contentRepository;
@@ -122,7 +137,7 @@ public class RealtimeEventProducer {
         List<RealtimeEvent> events = planner.planBatch(config.getEventsPerBatch(), config.getBatchId(),
             LocalDateTime.now(), employees, contents, commentRepository::findByContentId, compositeChannelIds);
         for (RealtimeEvent event : events) {
-            kafkaTemplate.send(RealtimeConfig.COMMUNITY_EVENTS_TOPIC, event.partitionKey(), event)
+            kafkaTemplate.send(topic, event.partitionKey(), event)
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed to publish realtime event {}", event, error);
