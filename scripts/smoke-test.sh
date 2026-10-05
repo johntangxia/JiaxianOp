@@ -87,6 +87,23 @@ expect_json "竞赛榜（领域 23 个、综合 5 个、各 5 个维度）" "$WE
   'len(d["domain"]) == 23 and len(d["composite"]) == 5 and all(len(e["dimensions"]) == 5 for e in d["domain"] + d["composite"])'
 expect_status "竞赛榜拒绝不是 1 号的月榜周期" "$WEB_URL/api/contest/boards?type=MONTH&periodStart=2025-06-02" 400
 
+echo "下钻与对比"
+expect_json "频道下的账号" "$WEB_URL/api/drill/channels/$CHANNEL_ID/accounts?from=$COCKPIT_FROM&to=$TO" 'len(d["accounts"]) > 0'
+ACCOUNT_ID=$(json_value "$WEB_URL/api/drill/channels/$CHANNEL_ID/accounts?from=$COCKPIT_FROM&to=$TO" 'd["accounts"][0]["id"]')
+expect_json "账号下钻（趋势、作者、频道分布、Top 内容、关注者）" "$WEB_URL/api/drill/accounts/$ACCOUNT_ID?from=$COCKPIT_FROM&to=$TO&granularity=WEEK" \
+  'len(d["trend"]) > 0 and len(d["authors"]) > 0 and len(d["channels"]) > 0 and d["current"]["followers"] is not None'
+DRILL_BLOGGER=$(json_value "$WEB_URL/api/drill/accounts/$ACCOUNT_ID?from=$COCKPIT_FROM&to=$TO&granularity=WEEK" 'd["authors"][0]["id"]')
+expect_json "博主下钻（作者视角）" "$WEB_URL/api/drill/bloggers/$DRILL_BLOGGER?from=$COCKPIT_FROM&to=$TO" \
+  'd["current"]["followers"] is None and len(d["accounts"]) > 0'
+DRILL_CONTENT=$(json_value "$WEB_URL/api/drill/accounts/$ACCOUNT_ID?from=$COCKPIT_FROM&to=$TO&granularity=WEEK" 'd["topContents"][0]["contentId"]')
+expect_json "内容下钻（入口曝光、标签、作者）" "$WEB_URL/api/drill/contents/$DRILL_CONTENT?from=$COCKPIT_FROM&to=$TO" \
+  'len(d["tags"]) >= 3 and len(d["authors"]) >= 1 and len(d["composition"]) == 5'
+SECOND_CHANNEL=$(json_value "$WEB_URL/api/channels/cockpit?from=$COCKPIT_FROM&to=$TO" 'sorted(d["domain"], key=lambda r: -r["current"]["content"]["pv"])[1]["id"]')
+expect_json "对比两个领域频道" "$WEB_URL/api/compare?type=CHANNEL&ids=$CHANNEL_ID,$SECOND_CHANNEL&from=$COCKPIT_FROM&to=$TO&granularity=WEEK" \
+  'len(d["subjects"]) == 2 and d["subjects"][0]["ownEntry"] is not None'
+expect_status "对比拒绝只选一个对象" "$WEB_URL/api/compare?type=CHANNEL&ids=$CHANNEL_ID&from=$COCKPIT_FROM&to=$TO" 400
+expect_status "不存在的账号返回 404" "$WEB_URL/api/drill/accounts/999999999?from=$COCKPIT_FROM&to=$TO" 404
+
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'
