@@ -2,6 +2,7 @@ package com.jiaxian.analytics.realtime;
 
 import com.jiaxian.analytics.domain.Content;
 import com.jiaxian.analytics.domain.Employee;
+import com.jiaxian.analytics.repository.ChannelRepository;
 import com.jiaxian.analytics.repository.CommentRepository;
 import com.jiaxian.analytics.repository.ContentRepository;
 import com.jiaxian.analytics.repository.EmployeeRepository;
@@ -37,13 +38,14 @@ class RealtimeEventProducerTest {
     @Mock private EmployeeRepository employeeRepository;
     @Mock private ContentRepository contentRepository;
     @Mock private CommentRepository commentRepository;
+    @Mock private ChannelRepository channelRepository;
 
     private RealtimeEventProducer producer;
 
     @BeforeEach
     void setUp() {
         producer = new RealtimeEventProducer(kafkaTemplate, employeeRepository, contentRepository,
-            commentRepository, new RealtimeEventPlanner(new Random(1)));
+            commentRepository, channelRepository, new RealtimeEventPlanner(new Random(1)));
     }
 
     @AfterEach
@@ -78,7 +80,7 @@ class RealtimeEventProducerTest {
     void publishBatchSendsOneKeyedMessagePerPlannedEvent() {
         stubSend();
 
-        producer.publishBatch(config(20), employees(), contents());
+        producer.publishBatch(config(20), employees(), contents(), java.util.Map.of());
 
         ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<RealtimeEvent> events = ArgumentCaptor.forClass(RealtimeEvent.class);

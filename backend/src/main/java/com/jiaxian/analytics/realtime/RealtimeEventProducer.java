@@ -2,6 +2,8 @@ package com.jiaxian.analytics.realtime;
 
 import com.jiaxian.analytics.domain.Content;
 import com.jiaxian.analytics.domain.Employee;
+import com.jiaxian.analytics.domain.Channel;
+import com.jiaxian.analytics.repository.ChannelRepository;
 import com.jiaxian.analytics.repository.CommentRepository;
 import com.jiaxian.analytics.repository.ContentRepository;
 import com.jiaxian.analytics.repository.EmployeeRepository;
@@ -12,7 +14,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,6 +31,7 @@ public class RealtimeEventProducer {
     private final EmployeeRepository employeeRepository;
     private final ContentRepository contentRepository;
     private final CommentRepository commentRepository;
+    private final ChannelRepository channelRepository;
     private final RealtimeEventPlanner planner;
 
     private final AtomicLong sentCount = new AtomicLong();
@@ -39,8 +44,9 @@ public class RealtimeEventProducer {
     public RealtimeEventProducer(KafkaTemplate<String, RealtimeEvent> kafkaTemplate,
                                  EmployeeRepository employeeRepository,
                                  ContentRepository contentRepository,
-                                 CommentRepository commentRepository) {
-        this(kafkaTemplate, employeeRepository, contentRepository, commentRepository,
+                                 CommentRepository commentRepository,
+                                 ChannelRepository channelRepository) {
+        this(kafkaTemplate, employeeRepository, contentRepository, commentRepository, channelRepository,
             new RealtimeEventPlanner(new Random()));
     }
 
@@ -48,11 +54,13 @@ public class RealtimeEventProducer {
                           EmployeeRepository employeeRepository,
                           ContentRepository contentRepository,
                           CommentRepository commentRepository,
+                          ChannelRepository channelRepository,
                           RealtimeEventPlanner planner) {
         this.kafkaTemplate = kafkaTemplate;
         this.employeeRepository = employeeRepository;
         this.contentRepository = contentRepository;
         this.commentRepository = commentRepository;
+        this.channelRepository = channelRepository;
         this.planner = planner;
     }
 
@@ -66,11 +74,16 @@ public class RealtimeEventProducer {
             throw new IllegalStateException("No employees or content found; run the historical backfill first");
         }
 
+        Map<String, Long> compositeChannelIds = new HashMap<>();
+        for (Channel channel : channelRepository.findByCategory(Channel.CATEGORY_COMPOSITE)) {
+            compositeChannelIds.put(channel.getName(), channel.getId());
+        }
+
         sentCount.set(0);
         batchId = config.getBatchId();
         startedAt = LocalDateTime.now();
         executor = Executors.newSingleThreadScheduledExecutor();
-        executor.scheduleWithFixedDelay(() -> runBatchSafely(config, employees, contents),
+        executor.scheduleWithFixedDelay(() -> runBatchSafely(config, employees, contents, compositeChannelIds),
             0, config.getIntervalMillis(), TimeUnit.MILLISECONDS);
         running = true;
         return status();
@@ -104,9 +117,10 @@ public class RealtimeEventProducer {
         stop();
     }
 
-    void publishBatch(RealtimeSimulationConfig config, List<Employee> employees, List<Content> contents) {
+    void publishBatch(RealtimeSimulationConfig config, List<Employee> employees, List<Content> contents,
+                      Map<String, Long> compositeChannelIds) {
         List<RealtimeEvent> events = planner.planBatch(config.getEventsPerBatch(), config.getBatchId(),
-            LocalDateTime.now(), employees, contents, commentRepository::findByContentId);
+            LocalDateTime.now(), employees, contents, commentRepository::findByContentId, compositeChannelIds);
         for (RealtimeEvent event : events) {
             kafkaTemplate.send(RealtimeConfig.COMMUNITY_EVENTS_TOPIC, event.partitionKey(), event)
                 .whenComplete((result, error) -> {
@@ -119,9 +133,10 @@ public class RealtimeEventProducer {
     }
 
     // scheduleWithFixedDelay 里的任务一旦抛异常，后续调度会被静默取消，所以这里必须兜住所有异常。
-    private void runBatchSafely(RealtimeSimulationConfig config, List<Employee> employees, List<Content> contents) {
+    private void runBatchSafely(RealtimeSimulationConfig config, List<Employee> employees, List<Content> contents,
+                                Map<String, Long> compositeChannelIds) {
         try {
-            publishBatch(config, employees, contents);
+            publishBatch(config, employees, contents, compositeChannelIds);
         } catch (Exception e) {
             log.error("Realtime batch failed, will retry on the next tick", e);
         }

@@ -1,6 +1,7 @@
 package com.jiaxian.analytics.realtime;
 
 import com.jiaxian.analytics.simulator.BehaviorEventGenerator;
+import com.jiaxian.analytics.simulator.ViewDetail;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +30,12 @@ public class RealtimeEventHandler {
         Long actor = event.getActorEmployeeId();
         switch (event.getEventType()) {
             case VIEW -> eventGenerator.generateView(
-                requireContentId(event), actor, event.getOccurTime(), event.getBatchId());
+                requireContentId(event), actor, event.getOccurTime(), event.getBatchId(),
+                new ViewDetail(event.getSourceType(), event.getEntryChannelId(),
+                    event.getDwellSeconds(), event.getCompleted()));
+            case IMPRESSION -> eventGenerator.generateImpression(
+                requireContentId(event), actor, requireEntryChannelId(event), event.getOccurTime(), false,
+                event.getBatchId());
             case LIKE -> eventGenerator.generateLike(
                 requireContentId(event), actor, event.getOccurTime(), event.getBatchId());
             case SHARE -> eventGenerator.generateShare(
@@ -49,6 +55,13 @@ public class RealtimeEventHandler {
             throw new IllegalArgumentException("contentId is required for " + event.getEventType());
         }
         return event.getContentId();
+    }
+
+    private Long requireEntryChannelId(RealtimeEvent event) {
+        if (event.getEntryChannelId() == null) {
+            throw new IllegalArgumentException("entryChannelId is required for " + event.getEventType());
+        }
+        return event.getEntryChannelId();
     }
 
     private Long requireTargetCommentId(RealtimeEvent event) {

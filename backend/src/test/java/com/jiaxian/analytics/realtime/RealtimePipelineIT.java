@@ -36,6 +36,7 @@ class RealtimePipelineIT {
     @Autowired private PvLogRepository pvLogRepository;
     @Autowired private PointsLedgerRepository pointsLedgerRepository;
     @Autowired private StringRedisTemplate redisTemplate;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
     void producedEventsAreConsumedPersistedWithPointsAndCountedInRedis() {
@@ -71,6 +72,11 @@ class RealtimePipelineIT {
         long pvRows = pvLogRepository.countBySimulationBatchId(batchId);
 
         assertThat(pvRows).isGreaterThan(0);
+        // 实时浏览也带来源和停留；入口来源的点击落了"已点击"曝光，同批次里还有若干未点击曝光
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pv_log WHERE simulation_batch_id = ?"
+            + " AND (source_type IS NULL OR dwell_seconds IS NULL)", Long.class, batchId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM impression WHERE simulation_batch_id = ?",
+            Long.class, batchId)).isGreaterThan(0);
         assertThat(ledger).extracting(PointsLedger::getCategory)
             .contains(PointsCategory.ACTIVE, PointsCategory.PASSIVE);
         assertThat(sumCounters("rt:pv:channel:*:" + today) - redisPvBefore)

@@ -25,7 +25,7 @@ public class RealtimeCounterUpdater {
         String keyPrefix = switch (event.getEventType()) {
             case VIEW -> PV_KEY_PREFIX;
             case LIKE, SHARE, FAVORITE, COMMENT, COMMENT_LIKE -> ENGAGEMENT_KEY_PREFIX;
-            case LOGIN -> null;
+            case LOGIN, IMPRESSION -> null;
         };
         if (keyPrefix == null || event.getContentId() == null) {
             return;

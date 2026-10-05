@@ -1,5 +1,6 @@
 package com.jiaxian.analytics.realtime;
 
+import com.jiaxian.analytics.domain.ViewSource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,11 @@ public class RealtimeEvent {
     private Long parentCommentId;
     /** 仅 COMMENT_LIKE 事件需要，表示被点赞的评论 id */
     private Long targetCommentId;
+    /** 仅 VIEW / IMPRESSION：浏览来源、入口频道、停留时长、是否读完。旧的发送方不带这些字段，为空。 */
+    private ViewSource sourceType;
+    private Long entryChannelId;
+    private Integer dwellSeconds;
+    private Boolean completed;
     private Long actorEmployeeId;
     private LocalDateTime occurTime;
     private String batchId;

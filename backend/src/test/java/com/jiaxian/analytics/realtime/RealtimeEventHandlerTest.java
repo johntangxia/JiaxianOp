@@ -1,6 +1,7 @@
 package com.jiaxian.analytics.realtime;
 
 import com.jiaxian.analytics.simulator.BehaviorEventGenerator;
+import com.jiaxian.analytics.simulator.ViewDetail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +39,7 @@ class RealtimeEventHandlerTest {
     void viewDispatchesToGenerateView() {
         handler.handle(event(RealtimeEventType.VIEW).contentId(10L).build());
 
-        verify(eventGenerator).generateView(10L, ACTOR, TIME, BATCH);
+        verify(eventGenerator).generateView(10L, ACTOR, TIME, BATCH, ViewDetail.NONE);
         verifyNoMoreInteractions(eventGenerator);
     }
 
@@ -127,5 +128,30 @@ class RealtimeEventHandlerTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("targetCommentId");
         verifyNoInteractions(eventGenerator);
+    }
+
+    @Test
+    void viewWithSourceDetailPassesItThrough() {
+        handler.handle(event(RealtimeEventType.VIEW).contentId(10L).sourceType(com.jiaxian.analytics.domain.ViewSource.ENTRY)
+            .entryChannelId(7L).dwellSeconds(42).completed(true).build());
+
+        verify(eventGenerator).generateView(10L, ACTOR, TIME, BATCH,
+            new ViewDetail(com.jiaxian.analytics.domain.ViewSource.ENTRY, 7L, 42, true));
+        verifyNoMoreInteractions(eventGenerator);
+    }
+
+    @Test
+    void impressionDispatchesToGenerateUnclickedImpression() {
+        handler.handle(event(RealtimeEventType.IMPRESSION).contentId(10L).entryChannelId(7L).build());
+
+        verify(eventGenerator).generateImpression(10L, ACTOR, 7L, TIME, false, BATCH);
+        verifyNoMoreInteractions(eventGenerator);
+    }
+
+    @Test
+    void impressionWithoutEntryChannelIsRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> handler.handle(event(RealtimeEventType.IMPRESSION).contentId(10L).build()))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("entryChannelId");
     }
 }

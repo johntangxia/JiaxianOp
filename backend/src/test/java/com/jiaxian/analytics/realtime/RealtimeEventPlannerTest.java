@@ -2,6 +2,8 @@ package com.jiaxian.analytics.realtime;
 
 import com.jiaxian.analytics.domain.Comment;
 import com.jiaxian.analytics.domain.Content;
+import com.jiaxian.analytics.domain.ContentType;
+import com.jiaxian.analytics.domain.ViewSource;
 import com.jiaxian.analytics.domain.Employee;
 import org.junit.jupiter.api.Test;
 
@@ -109,14 +111,18 @@ class RealtimeEventPlannerTest {
     }
 
     @Test
-    void allSevenEventTypesAppearWhenCommentsExist() {
+    void allSevenBehaviourEventTypesAppearWhenCommentsExist() {
         RealtimeEventPlanner planner = new RealtimeEventPlanner(new Random(42));
         List<Comment> existing = List.of(comment(1, null));
 
         List<RealtimeEvent> events = plan(planner, 2000, List.of(content(1, 0.5)), contentId -> existing);
 
+        // IMPRESSION 只在提供综合频道（实时来源模拟）时才会出现，见下面的来源测试
         assertThat(events).extracting(RealtimeEvent::getEventType)
-            .contains(RealtimeEventType.values());
+            .contains(RealtimeEventType.VIEW, RealtimeEventType.LIKE, RealtimeEventType.SHARE,
+                RealtimeEventType.FAVORITE, RealtimeEventType.COMMENT, RealtimeEventType.COMMENT_LIKE,
+                RealtimeEventType.LOGIN)
+            .doesNotContain(RealtimeEventType.IMPRESSION);
     }
 
     @Test
@@ -151,5 +157,52 @@ class RealtimeEventPlannerTest {
             Employee.builder().id(1L).communityJoinDate(NOW.toLocalDate().plusDays(5)).build());
 
         assertThat(planner.planBatch(50, BATCH, NOW, employees, List.of(content(1, 0.5)), NO_COMMENTS)).isEmpty();
+    }
+
+    private static final java.util.Map<String, Long> COMPOSITE = java.util.Map.of("推荐", 2L, "热点", 3L, "视频", 4L, "关注", 1L);
+
+    private List<RealtimeEvent> planWithSources(int count, long seed) {
+        Content video = Content.builder().id(1L).channelId(50L).type(ContentType.VIDEO).popularityWeight(0.5).build();
+        Content article = Content.builder().id(2L).channelId(51L).type(ContentType.ARTICLE).popularityWeight(0.5).build();
+        return new RealtimeEventPlanner(new Random(seed)).planBatch(count, BATCH, NOW, employees(5),
+            List.of(video, article), NO_COMMENTS, COMPOSITE);
+    }
+
+    @Test
+    void withCompositeChannelsEveryViewCarriesASourceAndDwell() {
+        List<RealtimeEvent> views = planWithSources(3000, 7).stream()
+            .filter(e -> e.getEventType() == RealtimeEventType.VIEW).toList();
+
+        assertThat(views).isNotEmpty().allMatch(v -> v.getSourceType() != null
+            && v.getDwellSeconds() != null && v.getDwellSeconds() >= 3 && v.getCompleted() != null);
+        assertThat(views).filteredOn(v -> v.getSourceType() == ViewSource.ENTRY)
+            .allMatch(v -> v.getEntryChannelId() != null);
+        assertThat(views).filteredOn(v -> v.getSourceType() != ViewSource.ENTRY)
+            .allMatch(v -> v.getEntryChannelId() == null);
+        // 实时侧没有关注关系：关注入口（频道 1）不会出现；文章不会走视频入口（频道 4）
+        assertThat(views).extracting(RealtimeEvent::getEntryChannelId).doesNotContain(1L);
+        assertThat(views).filteredOn(v -> v.getContentId() == 2L).extracting(RealtimeEvent::getEntryChannelId)
+            .doesNotContain(4L);
+    }
+
+    @Test
+    void entryViewsBringUnclickedImpressionsOnTheSameContentAndEntryWithoutChangingTheBehaviourEventCount() {
+        List<RealtimeEvent> events = planWithSources(3000, 8);
+
+        List<RealtimeEvent> behaviour = events.stream().filter(e -> e.getEventType() != RealtimeEventType.IMPRESSION).toList();
+        List<RealtimeEvent> impressions = events.stream().filter(e -> e.getEventType() == RealtimeEventType.IMPRESSION).toList();
+        assertThat(behaviour).hasSize(3000);
+        assertThat(impressions).isNotEmpty().allMatch(i -> i.getEntryChannelId() != null && i.getContentId() != null
+            && i.getActorEmployeeId() != null && NOW.equals(i.getOccurTime()) && BATCH.equals(i.getBatchId()));
+        assertThat(impressions.size()).isGreaterThan(
+            (int) behaviour.stream().filter(e -> e.getSourceType() == ViewSource.ENTRY).count());
+    }
+
+    @Test
+    void withoutCompositeChannelsViewsStayWithoutSourceLikeBefore() {
+        List<RealtimeEvent> events = plan(new RealtimeEventPlanner(new Random(9)), 500, List.of(content(1, 0.5)), NO_COMMENTS);
+
+        assertThat(events).hasSize(500).allMatch(e -> e.getSourceType() == null && e.getEntryChannelId() == null
+            && e.getEventType() != RealtimeEventType.IMPRESSION);
     }
 }
