@@ -80,6 +80,13 @@ expect_json "频道详情（趋势、构成、Top 内容）" "$WEB_URL/api/chann
 expect_status "驾驶舱拒绝颠倒的日期范围" "$WEB_URL/api/channels/cockpit?from=$TO&to=$COCKPIT_FROM" 400
 expect_status "不存在的频道返回 404" "$WEB_URL/api/channels/999999999/detail?from=$COCKPIT_FROM&to=$TO" 404
 
+echo "频道竞赛榜"
+expect_json "竞赛周期（月）" "$WEB_URL/api/contest/periods?type=MONTH" 'len(d) > 0'
+CONTEST_MONTH=$(json_value "$WEB_URL/api/contest/periods?type=MONTH" 'next((p["periodStart"] for p in d if p["complete"]), d[0]["periodStart"])')
+expect_json "竞赛榜（领域 23 个、综合 5 个、各 5 个维度）" "$WEB_URL/api/contest/boards?type=MONTH&periodStart=$CONTEST_MONTH" \
+  'len(d["domain"]) == 23 and len(d["composite"]) == 5 and all(len(e["dimensions"]) == 5 for e in d["domain"] + d["composite"])'
+expect_status "竞赛榜拒绝不是 1 号的月榜周期" "$WEB_URL/api/contest/boards?type=MONTH&periodStart=2025-06-02" 400
+
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'
