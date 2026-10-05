@@ -9,10 +9,11 @@ export interface ListPreset {
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fetchUserList } from "../../api/people";
+import { fetchUserList, userListExportUrl } from "../../api/people";
 import type { UserListRow, UserListSort } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { useAsync } from "../../composables/useAsync";
+import { downloadFile } from "../../utils/download";
 import { dateOnly } from "../../utils/readers";
 import { lifecycleTagType, USER_SORTS, userLink, valueTagType } from "../../utils/people";
 
@@ -78,6 +79,16 @@ watch(
 );
 
 const data = computed(() => report.data.value);
+function exportCsv(): void {
+  downloadFile(userListExportUrl({
+    asOf: props.asOf,
+    stage: stage.value === ALL ? undefined : stage.value,
+    value: value.value === ALL ? undefined : value.value,
+    dept: dept.value === ALL ? undefined : dept.value,
+    q: keyword.value.trim() || undefined,
+    sort: sort.value,
+  }));
+}
 const r = (row: unknown): UserListRow => row as UserListRow;
 function open(row: unknown): void {
   void router.push(userLink(r(row).employeeId, props.asOf));
@@ -105,6 +116,7 @@ function open(row: unknown): void {
           <el-option v-for="s in USER_SORTS" :key="s.value" :label="s.label" :value="s.value" />
         </el-select>
         <el-input v-model="keyword" size="small" placeholder="按姓名搜索" clearable style="width: 150px" @keyup.enter="reload" @clear="reload" />
+        <el-button size="small" :disabled="!data || data.total === 0" @click="exportCsv">导出 CSV</el-button>
       </div>
     </div>
     <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.total === 0" empty-text="没有符合条件的用户">

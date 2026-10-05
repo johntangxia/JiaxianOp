@@ -68,7 +68,7 @@ async function setStatus(alert: GrowthAlert, next: GrowthAlertStatus): Promise<v
       </el-radio-group>
       <el-button type="primary" size="small" :loading="busy" @click="rebuild">重算告警</el-button>
     </div>
-    <p class="muted">告警来自频道诊断、DAU 下滑、新成员激活、部门渗透率和 KOL 流失预警；重算是幂等的，已有状态保留，已关闭的不会重开。</p>
+    <p class="muted">告警来自频道诊断、DAU 下滑、新成员激活、部门渗透率和 KOL 流失预警；每天早上 7 点会自动重算一次；重算是幂等的，已有状态保留，已关闭的不会重开。</p>
     <AsyncBlock :loading="list.loading.value" :error="list.error.value" :empty="!!data && data.total === 0" empty-text="没有告警；点“重算告警”按当前数据检查一遍">
       <div v-if="data && data.total > 0">
         <el-table :data="data.alerts" size="small">

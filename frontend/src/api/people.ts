@@ -1,4 +1,5 @@
 import { getJson } from "./http";
+import { buildQuery } from "./query";
 import type {
   CreatorConcentrationReport,
   CreatorLadderReport,
@@ -66,4 +67,14 @@ export function fetchUserList(query: UserListQuery): Promise<UserListReport> {
 
 export function fetchUserProfile(id: number, asOf?: string): Promise<UserProfile> {
   return getJson<UserProfile>(`/api/users/${id}`, { asOf });
+}
+
+/** 创作者排行导出 CSV 的下载地址（全部，不分页）：排序和部门筛选同排行。 */
+export function creatorRankingExportUrl(from: string, to: string, sort: CreatorSortKey, dept: string | undefined): string {
+  return "/api/creators/ranking/export" + buildQuery({ from, to, sort, dept });
+}
+
+/** 用户列表导出 CSV 的下载地址（全部符合条件的用户，不分页）：筛选和排序同用户列表。 */
+export function userListExportUrl(query: Omit<UserListQuery, "limit" | "offset">): string {
+  return "/api/users/export" + buildQuery({ ...query });
 }

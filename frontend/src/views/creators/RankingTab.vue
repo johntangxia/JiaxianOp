@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fetchCreatorRanking } from "../../api/people";
+import { creatorRankingExportUrl, fetchCreatorRanking } from "../../api/people";
 import type { CreatorRow, CreatorSortKey } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { useAsync } from "../../composables/useAsync";
 import { formatPercent } from "../../utils/channelMetrics";
+import { downloadFile } from "../../utils/download";
 import { bloggerLink, type Range } from "../../utils/drill";
 import { formatNumber } from "../../utils/format";
 import { CREATOR_SORTS } from "../../utils/people";
@@ -42,6 +43,9 @@ watch([sort, dept], () => {
 watch(page, load);
 
 const data = computed(() => report.data.value);
+function exportCsv(): void {
+  downloadFile(creatorRankingExportUrl(props.range.from, props.range.to, sort.value, dept.value === ALL_DEPTS ? undefined : dept.value));
+}
 
 // el-table 插槽里的 row 是 any，统一在这里断言
 const r = (row: unknown): CreatorRow => row as CreatorRow;
@@ -62,6 +66,7 @@ function open(row: unknown): void {
           <el-option label="全部部门" :value="ALL_DEPTS" />
           <el-option v-for="d in data?.depts ?? []" :key="d" :label="d" :value="d" />
         </el-select>
+        <el-button size="small" :disabled="!data || data.total === 0" @click="exportCsv">导出 CSV</el-button>
       </div>
     </div>
     <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.total === 0" empty-text="所选区间内没有创作者">

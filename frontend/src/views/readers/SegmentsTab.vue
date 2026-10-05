@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fetchLurkers, fetchSegments } from "../../api/readers";
+import { fetchLurkers, fetchSegments, lurkersExportUrl } from "../../api/readers";
 import type { ReaderLurker } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import BaseChart from "../../components/BaseChart.vue";
@@ -9,6 +9,7 @@ import { buildSegmentPieOption } from "../../charts/readerOption";
 import { useAsync } from "../../composables/useAsync";
 import { formatPercent } from "../../utils/channelMetrics";
 import type { Range } from "../../utils/drill";
+import { downloadFile } from "../../utils/download";
 import { userLink } from "../../utils/people";
 import { dateOnly } from "../../utils/readers";
 
@@ -46,6 +47,9 @@ watch(page, loadLurkers);
 
 const pieOption = computed(() => (segments.data.value ? buildSegmentPieOption(segments.data.value.segments) : {}));
 const lurkerData = computed(() => lurkers.data.value);
+function exportCsv(): void {
+  downloadFile(lurkersExportUrl(props.range.from, props.range.to, dept.value === ALL_DEPTS ? undefined : dept.value));
+}
 
 // el-table 插槽里的 row 是 any，统一在这里断言
 const r = (row: unknown): ReaderLurker => row as ReaderLurker;
@@ -73,10 +77,13 @@ function open(row: unknown): void {
     <div class="panel">
       <div class="head">
         <h3 class="panel-title">沉默读者名单 <span class="muted">（区间内有浏览，但没发帖也没点赞、评论、转发、收藏；按浏览次数从高到低，点一行看他的用户 360）</span></h3>
-        <el-select v-model="dept" size="small" style="width: 180px">
-          <el-option label="全部部门" :value="ALL_DEPTS" />
-          <el-option v-for="d in lurkerData?.depts ?? []" :key="d" :label="d" :value="d" />
-        </el-select>
+        <div class="filters">
+          <el-select v-model="dept" size="small" style="width: 180px">
+            <el-option label="全部部门" :value="ALL_DEPTS" />
+            <el-option v-for="d in lurkerData?.depts ?? []" :key="d" :label="d" :value="d" />
+          </el-select>
+          <el-button size="small" :disabled="!lurkerData || lurkerData.total === 0" @click="exportCsv">导出 CSV</el-button>
+        </div>
       </div>
       <AsyncBlock :loading="lurkers.loading.value" :error="lurkers.error.value" :empty="!!lurkerData && lurkerData.total === 0" empty-text="没有沉默读者">
         <div v-if="lurkerData && lurkerData.total > 0">
@@ -108,6 +115,10 @@ function open(row: unknown): void {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+.filters {
+  display: flex;
+  gap: 8px;
 }
 .pager {
   margin-top: 12px;

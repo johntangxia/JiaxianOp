@@ -1,4 +1,5 @@
 import { getJson } from "./http";
+import { buildQuery } from "./query";
 import type {
   Granularity,
   PvRange,
@@ -32,4 +33,9 @@ export function fetchLurkers(from: string, to: string, dept: string | undefined,
 /** 登录/发帖行为的起止日（模拟数据里终点是模拟的"现在"）；没有数据时 from/to 都是 null。 */
 export function fetchReaderRange(): Promise<PvRange> {
   return getJson<PvRange>("/api/readers/range");
+}
+
+/** 沉默读者名单导出 CSV 的下载地址（全部，不分页）。 */
+export function lurkersExportUrl(from: string, to: string, dept: string | undefined): string {
+  return "/api/readers/lurkers/export" + buildQuery({ from, to, dept });
 }
