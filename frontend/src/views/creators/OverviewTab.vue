@@ -9,7 +9,7 @@ import { useAsync } from "../../composables/useAsync";
 import { changeRate, formatPercent } from "../../utils/channelMetrics";
 import type { Range } from "../../utils/drill";
 import { formatNumber, formatRate, rateClass } from "../../utils/format";
-import { cohortLabel, heatCell, periodHeader } from "../../utils/readers";
+import { cohortLabel, heatCell, isSmallCohort, MIN_COHORT_SIZE, periodHeader } from "../../utils/readers";
 
 const props = defineProps<{ range: Range }>();
 
@@ -80,7 +80,7 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
               </tr>
             </thead>
             <tbody>
-              <tr v-for="cohort in data.cohorts" :key="cohort.cohortStart">
+              <tr v-for="cohort in data.cohorts" :key="cohort.cohortStart" :class="{ small: isSmallCohort(cohort.size) }" :title="isSmallCohort(cohort.size) ? `人数不足 ${MIN_COHORT_SIZE} 人，比例会剧烈波动` : undefined">
                 <td class="label-cell">{{ cohortLabel(cohort.cohortStart, "MONTH") }}</td>
                 <td>{{ cohort.size }}</td>
                 <td v-for="(value, i) in cohort.retention" :key="i" :style="{ background: heatCell(value).background, color: heatCell(value).color }">
@@ -89,7 +89,7 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
               </tr>
             </tbody>
           </table>
-          <p class="muted">"—"表示这个月还没有被数据完整覆盖（数据最后一天是 {{ data.dataEnd }}）；历史开始前就发过帖的老创作者，首次发帖日取历史里最早的一次，不在区间内的不进同期群。</p>
+          <p class="muted">"—"表示这个月还没有被数据完整覆盖（数据最后一天是 {{ data.dataEnd }}）；历史开始前就发过帖的老创作者，首次发帖日取历史里最早的一次，不在区间内的不进同期群；人数少于 5 的同期群整行置灰，比例会因为一两个人而剧烈波动。</p>
         </div>
       </div>
     </div>
@@ -147,5 +147,8 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
 .heat td.label-cell {
   text-align: left;
   white-space: nowrap;
+}
+.heat tr.small {
+  opacity: 0.45;
 }
 </style>

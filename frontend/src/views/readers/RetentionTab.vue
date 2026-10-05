@@ -4,7 +4,7 @@ import { fetchRetention } from "../../api/readers";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { useAsync } from "../../composables/useAsync";
 import type { Range } from "../../utils/drill";
-import { cohortLabel, heatCell, periodHeader } from "../../utils/readers";
+import { cohortLabel, heatCell, isSmallCohort, MIN_COHORT_SIZE, periodHeader } from "../../utils/readers";
 
 const props = defineProps<{ range: Range }>();
 
@@ -37,7 +37,7 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
             </tr>
           </thead>
           <tbody>
-            <tr v-for="cohort in data.cohorts" :key="cohort.cohortStart">
+            <tr v-for="cohort in data.cohorts" :key="cohort.cohortStart" :class="{ small: isSmallCohort(cohort.size) }" :title="isSmallCohort(cohort.size) ? `人数不足 ${MIN_COHORT_SIZE} 人，比例会剧烈波动` : undefined">
               <td class="label">{{ cohortLabel(cohort.cohortStart, granularity) }}</td>
               <td>{{ cohort.size }}</td>
               <td v-for="(value, i) in cohort.retention" :key="i" :style="{ background: heatCell(value).background, color: heatCell(value).color }">
@@ -46,7 +46,7 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
             </tr>
           </tbody>
         </table>
-        <p class="muted">"—"表示这个周期还没有被数据完整覆盖（数据最后一天是 {{ data.dataEnd }}）。历史开始前就加入的老成员不在任何同期群里；人数很少的同期群，留存率会因为一两个人而大幅波动。</p>
+        <p class="muted">"—"表示这个周期还没有被数据完整覆盖（数据最后一天是 {{ data.dataEnd }}）。历史开始前就加入的老成员不在任何同期群里；人数少于 5 的同期群（整行置灰），留存率会因为一两个人而大幅波动，别据此下结论。</p>
       </div>
     </AsyncBlock>
   </div>
@@ -85,5 +85,8 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
 .heat td.label {
   text-align: left;
   white-space: nowrap;
+}
+.heat tr.small {
+  opacity: 0.45;
 }
 </style>

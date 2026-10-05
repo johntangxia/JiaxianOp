@@ -135,7 +135,7 @@ class EntityGeneratorTest {
             switch (profile.persona()) {
                 case RISING -> {
                     long daysBeforeEnd = java.time.temporal.ChronoUnit.DAYS.between(join, END);
-                    assertThat(daysBeforeEnd).isBetween(21L, 60L);
+                    assertThat(daysBeforeEnd).isBetween(21L, 80L);
                 }
                 case STAR, CHURNING, DORMANT -> assertThat(join).isBefore(START);
                 case RANDOM -> { }

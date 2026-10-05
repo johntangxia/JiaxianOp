@@ -199,12 +199,63 @@ public class HistoricalBackfillService {
                 .add(entities.getProfiles().get(login.profileIndex()));
         }
 
+        Map<Long, List<Long>> authorsByContent = new HashMap<>();
+        for (ContentAuthor author : contentAuthorRepository.findAll()) {
+            authorsByContent.computeIfAbsent(author.getContentId(), k -> new ArrayList<>()).add(author.getEmployeeId());
+        }
+        int viewWeight = eventGenerator.viewWeight();
+        int contentViewedWeight = eventGenerator.contentViewedWeight();
+
+        // 按月分批：规划这个月的浏览 → 批量写入 → 生成互动 → 释放，内存只和一个月的量有关（全历史会有几十万行）。
+        // 互动只发生在非沉默读者身上、在看过之后；回复和评论点赞的时间不能越过历史结束日。
         Random viewRandom = new Random(config.getRandomSeed() * VIEW_STREAM_SALT);
+        LocalDateTime historyEndTime = config.getHistoryEnd().atStartOfDay();
+        Map<Long, List<Comment>> topLevelComments = new HashMap<>();
+        loginEvents.sort(java.util.Comparator.comparing(LoginEvent::time));
+        java.time.YearMonth currentMonth = null;
+        List<LoginEvent> monthLogins = new ArrayList<>();
+        for (int i = 0; i <= loginEvents.size(); i++) {
+            LoginEvent login = i < loginEvents.size() ? loginEvents.get(i) : null;
+            java.time.YearMonth month = login == null ? null : java.time.YearMonth.from(login.time());
+            if (!monthLogins.isEmpty() && (login == null || !month.equals(currentMonth))) {
+                generateMonth(monthLogins, entities, viewPlanner, multipliers, config, viewRandom, random, activeByDay,
+                    channelNameOfContent, tagsByContent, authorsByContent, viewWeight, contentViewedWeight,
+                    profileById, eventGenerator, viewerPicker, topLevelComments, historyEndTime);
+                monthLogins.clear();
+            }
+            if (login != null) {
+                currentMonth = month;
+                monthLogins.add(login);
+            }
+        }
+
+        // 登录占了绝大多数行，最后用 JDBC 批量写入（内容和 generateLogin 完全一样）。
+        loginBatchWriter.write(loginEvents.stream()
+            .map(e -> new LoginBatchWriter.Login(entities.getProfiles().get(e.profileIndex()).employee().getId(), e.time()))
+            .toList(), eventGenerator.loginWeight(), config.getBatchId());
+
+        EditorialPickGenerator editorialPickGenerator = new EditorialPickGenerator(
+            contentAuthorRepository, editorialPickLogRepository,
+            pointsWeightConfigRepository, pointsLedgerRepository, random);
+        int pickCount = Math.max(1, entities.getContents().size() / 20);
+        editorialPickGenerator.pickTopContent(entities.getContents(), pickCount,
+            config.getHistoryEnd().atStartOfDay(), config.getBatchId());
+    }
+
+    /** 一个月的浏览：规划、批量写入、生成互动。 */
+    private void generateMonth(List<LoginEvent> logins, EntityGenerator.GeneratedEntities entities,
+                               ViewPlanner viewPlanner, double[] multipliers, SimulationConfig config,
+                               Random viewRandom, Random random, Map<LocalDate, List<EmployeeProfile>> activeByDay,
+                               Map<Long, String> channelNameOfContent, Map<Long, List<String>> tagsByContent,
+                               Map<Long, List<Long>> authorsByContent, int viewWeight, int contentViewedWeight,
+                               Map<Long, EmployeeProfile> profileById, BehaviorEventGenerator eventGenerator,
+                               ViewerPicker viewerPicker, Map<Long, List<Comment>> topLevelComments,
+                               LocalDateTime historyEndTime) {
         List<ViewBatchWriter.ViewRow> viewRows = new ArrayList<>();
         List<ViewBatchWriter.ImpressionRow> impressionRows = new ArrayList<>();
         List<ViewBatchWriter.SearchRow> searchRows = new ArrayList<>();
         List<ViewPlanner.PlannedView> plannedViews = new ArrayList<>();
-        for (LoginEvent login : loginEvents) {
+        for (LoginEvent login : logins) {
             EmployeeProfile viewer = entities.getProfiles().get(login.profileIndex());
             for (ViewPlanner.PlannedView view : viewPlanner.planLogin(viewer, login.time(),
                 multipliers[login.profileIndex()], config.getViewsPerActiveDay(), viewRandom)) {
@@ -234,19 +285,10 @@ public class HistoricalBackfillService {
                 }
             }
         }
-
-        Map<Long, List<Long>> authorsByContent = new HashMap<>();
-        for (ContentAuthor author : contentAuthorRepository.findAll()) {
-            authorsByContent.computeIfAbsent(author.getContentId(), k -> new ArrayList<>()).add(author.getEmployeeId());
-        }
-        viewBatchWriter.writeViews(viewRows, authorsByContent, eventGenerator.viewWeight(),
-            eventGenerator.contentViewedWeight(), config.getBatchId());
+        viewBatchWriter.writeViews(viewRows, authorsByContent, viewWeight, contentViewedWeight, config.getBatchId());
         viewBatchWriter.writeImpressions(impressionRows, config.getBatchId());
         viewBatchWriter.writeSearches(searchRows, config.getBatchId());
 
-        // 互动：只发生在非沉默读者身上，在看过之后；回复和评论点赞的时间不能越过历史结束日。
-        LocalDateTime historyEndTime = config.getHistoryEnd().atStartOfDay();
-        Map<Long, List<Comment>> topLevelComments = new HashMap<>();
         for (ViewPlanner.PlannedView view : plannedViews) {
             EmployeeProfile viewer = profileById.get(view.viewerId());
             if (viewer.lurker()) {
@@ -289,18 +331,6 @@ public class HistoricalBackfillService {
                 }
             }
         }
-
-        // 登录占了绝大多数行，最后用 JDBC 批量写入（内容和 generateLogin 完全一样）。
-        loginBatchWriter.write(loginEvents.stream()
-            .map(e -> new LoginBatchWriter.Login(entities.getProfiles().get(e.profileIndex()).employee().getId(), e.time()))
-            .toList(), eventGenerator.loginWeight(), config.getBatchId());
-
-        EditorialPickGenerator editorialPickGenerator = new EditorialPickGenerator(
-            contentAuthorRepository, editorialPickLogRepository,
-            pointsWeightConfigRepository, pointsLedgerRepository, random);
-        int pickCount = Math.max(1, entities.getContents().size() / 20);
-        editorialPickGenerator.pickTopContent(entities.getContents(), pickCount,
-            config.getHistoryEnd().atStartOfDay(), config.getBatchId());
     }
 
     private record LoginEvent(int profileIndex, LocalDateTime time) {

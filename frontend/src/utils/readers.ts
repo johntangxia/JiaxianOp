@@ -42,3 +42,10 @@ export function roleColor(role: ReaderRoleKey): string {
 export function dateOnly(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "—";
 }
+
+/** 同期群人数少于这个数时，留存率会因为一两个人而剧烈波动，表格里整行置灰并提示。 */
+export const MIN_COHORT_SIZE = 5;
+
+export function isSmallCohort(size: number): boolean {
+  return size < MIN_COHORT_SIZE;
+}

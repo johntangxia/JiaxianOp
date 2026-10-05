@@ -21,9 +21,9 @@ public class EntityGenerator {
     static final int MAX_DAYS_BEFORE_START = 730;
     /** 新成员最晚在历史结束前这么多天加入，保证他们有时间产生行为。 */
     static final int NEWCOMER_MIN_DAYS_BEFORE_END = 14;
-    /** RISING 画像的加入日：历史结束前 21–60 天，分散开，避免在同一时段集中加入。 */
+    /** RISING 画像的加入日：历史结束前 21–80 天，分散开，避免在同一时段集中加入。 */
     static final int RISING_JOIN_MIN_DAYS_BEFORE_END = 21;
-    static final int RISING_JOIN_SPREAD_DAYS = 40;
+    static final int RISING_JOIN_SPREAD_DAYS = 60;
     /** 淡出型在沉默之后有 30% 的概率回流，沉默 30–120 天后回来。 */
     static final double RETURN_RATIO = 0.30;
     static final int MIN_RETURN_GAP_DAYS = 30;

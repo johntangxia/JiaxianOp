@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cohortLabel, dateOnly, heatCell, periodHeader, roleColor } from "./readers";
+import { cohortLabel, dateOnly, heatCell, isSmallCohort, MIN_COHORT_SIZE, periodHeader, roleColor } from "./readers";
 
 describe("cohort labels", () => {
   it("labels weeks with the Monday and months with year-month", () => {
@@ -50,5 +50,15 @@ describe("misc helpers", () => {
   it("cuts a timestamp down to the date", () => {
     expect(dateOnly("2025-06-10T08:30:00")).toBe("2025-06-10");
     expect(dateOnly(null)).toBe("—");
+  });
+});
+
+describe("isSmallCohort", () => {
+  it("flags cohorts with fewer than five people", () => {
+    expect(MIN_COHORT_SIZE).toBe(5);
+    expect(isSmallCohort(0)).toBe(true);
+    expect(isSmallCohort(4)).toBe(true);
+    expect(isSmallCohort(5)).toBe(false);
+    expect(isSmallCohort(120)).toBe(false);
   });
 });

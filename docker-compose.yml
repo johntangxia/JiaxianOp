@@ -68,7 +68,10 @@ services:
       DB_PASSWORD: "${GS_PASSWORD:-Jiaxian@2026}"
       REDIS_HOST: "redis"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
-      JAVA_OPTS: "${JAVA_OPTS:--XX:MaxRAMPercentage=75}"
+      # 75% 在小内存的 Docker 虚拟机（比如 4GB 的 Colima）里会把数据库挤垮，大批量回填时尤其明显
+      JAVA_OPTS: "${JAVA_OPTS:--XX:MaxRAMPercentage=50}"
+      # KOL 名单人数（近 12 个月积分前 N 名）：演示数据 1000 员工时 600 能让六个分层都出现且明星不至于过多，见 README
+      ANALYTICS_KOL_TOP_N: "${ANALYTICS_KOL_TOP_N:-600}"
       # 后端用系统默认时区取"今天"和写时间戳，容器默认是 UTC，会和浏览器所在时区差几个小时
       TZ: "${TZ:-Asia/Shanghai}"
     ports:
