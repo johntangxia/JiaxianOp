@@ -50,6 +50,22 @@ public class ChannelCockpitService {
         }
     }
 
+    /** 一个频道在一个周期里的指标（不含上期和诊断）。 */
+    public record ChannelSnapshot(long id, String name, String category, ChannelPeriod period) {
+    }
+
+    /** 区间内每个综合/领域频道的指标，按频道 id 排序；供竞赛榜这类只关心某一个周期的调用方使用。 */
+    public List<ChannelSnapshot> snapshot(LocalDate from, LocalDate to) {
+        validate(from, to);
+        PeriodData data = load(from, to);
+        List<ChannelSnapshot> result = new ArrayList<>();
+        for (ChannelRef channel : repository.channels()) {
+            result.add(new ChannelSnapshot(channel.id(), channel.name(), channel.category(),
+                period(channel.id(), isComposite(channel), data)));
+        }
+        return result;
+    }
+
     public Cockpit cockpit(LocalDate from, LocalDate to) {
         validate(from, to);
         LocalDate previousTo = from.minusDays(1);
