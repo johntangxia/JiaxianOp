@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS pv_log (
     content_id          BIGINT NOT NULL REFERENCES content(id),
     viewer_employee_id  BIGINT NOT NULL REFERENCES employee(id),
     view_time           TIMESTAMP NOT NULL,
+    entry_channel_id    BIGINT REFERENCES channel(id),
+    source_type         VARCHAR(10),
+    dwell_seconds       INTEGER,
+    completed           BOOLEAN,
     simulation_batch_id VARCHAR(64)
 );
 
@@ -181,3 +185,49 @@ CREATE TABLE IF NOT EXISTS action_playbook (
     recommendation_text VARCHAR(1000) NOT NULL,
     UNIQUE (segment_label, alert_status)
 );
+
+-- 曝光：用户在某个频道入口的信息流里"看到"一条内容；点击的曝光对应一条 pv_log。
+CREATE TABLE IF NOT EXISTS impression (
+    id                  BIGSERIAL PRIMARY KEY,
+    viewer_employee_id  BIGINT NOT NULL REFERENCES employee(id),
+    content_id          BIGINT NOT NULL REFERENCES content(id),
+    entry_channel_id    BIGINT NOT NULL REFERENCES channel(id),
+    impression_time     TIMESTAMP NOT NULL,
+    clicked             BOOLEAN NOT NULL,
+    simulation_batch_id VARCHAR(64)
+);
+
+-- 关注关系：员工关注某个账号；unfollow_time 为空表示仍在关注。只记录，不计分。
+CREATE TABLE IF NOT EXISTS follow_relation (
+    id                   BIGSERIAL PRIMARY KEY,
+    follower_employee_id BIGINT NOT NULL REFERENCES employee(id),
+    account_id           BIGINT NOT NULL REFERENCES account(id),
+    follow_time          TIMESTAMP NOT NULL,
+    unfollow_time        TIMESTAMP,
+    simulation_batch_id  VARCHAR(64)
+);
+
+CREATE TABLE IF NOT EXISTS search_log (
+    id                  BIGSERIAL PRIMARY KEY,
+    employee_id         BIGINT NOT NULL REFERENCES employee(id),
+    keyword             VARCHAR(100) NOT NULL,
+    search_time         TIMESTAMP NOT NULL,
+    clicked_content_id  BIGINT REFERENCES content(id),
+    simulation_batch_id VARCHAR(64)
+);
+
+CREATE TABLE IF NOT EXISTS content_tag (
+    id                  BIGSERIAL PRIMARY KEY,
+    content_id          BIGINT NOT NULL REFERENCES content(id),
+    tag                 VARCHAR(50) NOT NULL,
+    simulation_batch_id VARCHAR(64),
+    UNIQUE (content_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_impression_entry_time ON impression(entry_channel_id, impression_time);
+CREATE INDEX IF NOT EXISTS idx_impression_content ON impression(content_id);
+CREATE INDEX IF NOT EXISTS idx_follow_account ON follow_relation(account_id);
+CREATE INDEX IF NOT EXISTS idx_follow_follower ON follow_relation(follower_employee_id);
+CREATE INDEX IF NOT EXISTS idx_search_log_time ON search_log(search_time);
+CREATE INDEX IF NOT EXISTS idx_content_tag_content ON content_tag(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_tag_tag ON content_tag(tag);

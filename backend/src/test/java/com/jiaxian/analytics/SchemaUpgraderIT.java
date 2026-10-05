@@ -32,4 +32,22 @@ class SchemaUpgraderIT {
         assertThatCode(upgrader::afterPropertiesSet).doesNotThrowAnyException();
         assertThat(columnCount()).isEqualTo(1);
     }
+
+    @Test
+    void addsTheMissingPvLogColumns() {
+        for (String column : new String[] {"entry_channel_id", "source_type", "dwell_seconds", "completed"}) {
+            jdbc.execute("ALTER TABLE pv_log DROP COLUMN " + column);
+        }
+        assertThat(pvLogColumnCount()).isZero();
+
+        upgrader.afterPropertiesSet();
+
+        assertThat(pvLogColumnCount()).isEqualTo(4);
+    }
+
+    private int pvLogColumnCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+            + " WHERE table_schema = current_schema() AND table_name = 'pv_log'"
+            + " AND column_name IN ('entry_channel_id', 'source_type', 'dwell_seconds', 'completed')", Integer.class);
+    }
 }
