@@ -29,6 +29,14 @@ public class HistoricalBackfillService {
     static final double FAVORITE_PROBABILITY = 0.03 * INTERACTION_BOOST;
     static final double COMMENT_PROBABILITY = 0.08 * INTERACTION_BOOST;
     private static final long LOGIN_STREAM_SALT = 998_244_353L;
+    /**
+     * 每篇内容的浏览次数 = 2 + 60 × 热度权重^0.4。热度权重按最大值归一化后绝大多数很小（均值不到 0.01），
+     * 线性放大会让几乎所有内容只有 1 次浏览；开 0.4 次方压缩后，冷门内容 5–10 次、最热的内容约 62 次，
+     * 仍然是明显的头部效应，又给后面的 UV、点击率等分析留下足够的数据量。
+     */
+    static final int VIEW_BASE = 2;
+    static final double VIEW_PEAK = 60;
+    static final double VIEW_EXPONENT = 0.4;
 
     private final EmployeeRepository employeeRepository;
     private final AccountRepository accountRepository;
@@ -106,8 +114,8 @@ public class HistoricalBackfillService {
         for (Content content : entities.getContents()) {
             List<Comment> topLevelComments = new ArrayList<>();
             String channelName = channelNames.get(content.getChannelId());
-            // 热度权重越高，围绕这篇内容产生的浏览/点赞/评论事件越多，制造二八效应。
-            int viewCount = 1 + (int) (content.getPopularityWeight() * 50);
+            // 热度权重越高，围绕这篇内容产生的浏览/点赞/评论事件越多，制造头部效应。
+            int viewCount = VIEW_BASE + (int) (VIEW_PEAK * Math.pow(content.getPopularityWeight(), VIEW_EXPONENT));
             for (int i = 0; i < viewCount; i++) {
                 // 浏览时间：半衰期约 2 天的衰减 + 周末/上班时段规律；浏览者必须已加入社区，约 70% 来自本领域。
                 LocalDateTime occurTime = ActivityModel.viewTime(content.getPublishTime(), random);
