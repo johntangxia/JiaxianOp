@@ -4,17 +4,39 @@ INSERT INTO channel (name, category) VALUES
     ('热点', '综合频道'),
     ('视频', '综合频道'),
     ('直播', '综合频道'),
-    ('AI学习', '综合频道'),
-    ('终端', '专业领域'),
-    ('移动无线', '专业领域'),
-    ('固定网络', '专业领域'),
-    ('半导体', '专业领域'),
-    ('IT计算', '专业领域'),
-    ('智能汽车', '专业领域'),
-    ('知识产权', '专业领域'),
-    ('制造', '专业领域'),
-    ('供应链', '专业领域')
+    ('AI学习', '领域频道'),
+    ('终端', '领域频道'),
+    ('智能汽车', '领域频道'),
+    ('半导体', '领域频道'),
+    ('无线', '领域频道'),
+    ('云核', '领域频道'),
+    ('AI研发', '领域频道'),
+    ('自动驾驶网络ADN', '领域频道'),
+    ('交付服务', '领域频道'),
+    ('服务软件', '领域频道'),
+    ('华为云', '领域频道'),
+    ('光', '领域频道'),
+    ('数通', '领域频道'),
+    ('数据存储', '领域频道'),
+    ('计算', '领域频道'),
+    ('知识产权', '领域频道'),
+    ('制造', '领域频道'),
+    ('供应链', '领域频道'),
+    ('战略', '领域频道'),
+    ('能源', '领域频道'),
+    ('质量', '领域频道'),
+    ('海外研究所', '领域频道'),
+    ('2012', '领域频道')
 ON DUPLICATE KEY UPDATE category = category;
+
+-- 旧库升级：旧种子里的"专业领域"和"AI学习"（曾被放在综合频道）统一改成"领域频道"；
+-- 旧种子里已经不存在的频道，没有内容引用就删掉，有引用就停用（下次历史回填会清掉）。幂等。
+DELETE FROM channel
+ WHERE name IN ('移动无线', '固定网络', 'IT计算')
+   AND NOT EXISTS (SELECT 1 FROM content WHERE content.channel_id = channel.id);
+UPDATE channel SET category = '已停用' WHERE name IN ('移动无线', '固定网络', 'IT计算');
+UPDATE channel SET category = '领域频道' WHERE category = '专业领域';
+UPDATE channel SET category = '领域频道' WHERE name = 'AI学习';
 
 INSERT INTO points_weight_config (action_type, category, weight, effective_date) VALUES
     ('POST', 'ACTIVE', 100, '2026-01-01'),
