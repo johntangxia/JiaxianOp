@@ -19,10 +19,10 @@ export function defaultBackfillForm(today: Date = new Date()): BackfillForm {
   const start = new Date(end.getFullYear(), end.getMonth() - 18, 1);
   return {
     batchId: "demo",
-    employeeCount: 200,
-    accountCount: 20,
+    employeeCount: 1000,
+    accountCount: 100,
     teamAccountRatio: 0.25,
-    contentCount: 300,
+    contentCount: 1500,
     historyStart: toIsoDate(start),
     historyEnd: toIsoDate(end),
     randomSeed: 7,
