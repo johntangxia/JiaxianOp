@@ -5,6 +5,7 @@ import { fetchAlerts, rebuildAlerts, updateAlertStatus } from "../../api/growth"
 import type { GrowthAlert, GrowthAlertStatus } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { useAsync } from "../../composables/useAsync";
+import { userLink } from "../../utils/people";
 import { ALERT_STATUS_LABELS, alertKindLabel, draftFromAlert, ENTITY_TYPE_LABELS, type TaskDraft } from "../../utils/growth";
 
 const emit = defineEmits<{ createTask: [draft: TaskDraft] }>();
@@ -76,7 +77,11 @@ async function setStatus(alert: GrowthAlert, next: GrowthAlertStatus): Promise<v
           </el-table-column>
           <el-table-column label="类型" min-width="150"><template #default="{ row }">{{ alertKindLabel(r(row).kind) }}</template></el-table-column>
           <el-table-column label="对象" min-width="130">
-            <template #default="{ row }"><span class="muted">{{ ENTITY_TYPE_LABELS[r(row).entityType] }} · </span>{{ r(row).entityName }}</template>
+            <template #default="{ row }">
+              <span class="muted">{{ ENTITY_TYPE_LABELS[r(row).entityType] }} · </span>
+              <router-link v-if="r(row).entityType === 'BLOGGER' && r(row).entityId" :to="userLink(r(row).entityId!, r(row).periodEnd.slice(0, 10))">{{ r(row).entityName }}</router-link>
+              <template v-else>{{ r(row).entityName }}</template>
+            </template>
           </el-table-column>
           <el-table-column label="说明" prop="message" min-width="280" />
           <el-table-column label="统计日" min-width="100"><template #default="{ row }">{{ r(row).periodEnd.slice(0, 10) }}</template></el-table-column>

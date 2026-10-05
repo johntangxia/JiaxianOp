@@ -1,0 +1,93 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
+import { fetchReaderRange } from "../../api/readers";
+import type { PvRange } from "../../api/types";
+import AsyncBlock from "../../components/AsyncBlock.vue";
+import { defaultCockpitRange } from "../../utils/channelMetrics";
+import { parseIsoDate, toIsoDate, type DateRange } from "../../utils/dateRange";
+import ConcentrationTab from "./ConcentrationTab.vue";
+import LadderTab from "./LadderTab.vue";
+import OverviewTab from "./OverviewTab.vue";
+import RankingTab from "./RankingTab.vue";
+
+const initializing = ref(true);
+const initError = ref<string | null>(null);
+const noData = ref(false);
+const range = ref<DateRange | null>(null);
+const pvRange = ref<PvRange | null>(null);
+const tab = ref("overview");
+
+onMounted(async () => {
+  try {
+    pvRange.value = await fetchReaderRange();
+    const initial = defaultCockpitRange(pvRange.value);
+    if (initial) {
+      range.value = initial;
+    } else {
+      noData.value = true;
+    }
+  } catch (e) {
+    initError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    initializing.value = false;
+  }
+});
+
+const picker = computed<[Date, Date] | null>(() =>
+  range.value ? [parseIsoDate(range.value.from), parseIsoDate(range.value.to)] : null,
+);
+function onPicker(value: [Date, Date] | null): void {
+  if (value) {
+    range.value = { from: toIsoDate(value[0]), to: toIsoDate(value[1]) };
+  }
+}
+
+// 快捷项：以登录/发帖行为的最后一天（模拟的"现在"）为终点
+const shortcuts = computed(() =>
+  [30, 90, 180, 365].map((days) => ({
+    text: days === 365 ? "近一年" : days === 180 ? "近半年" : `近 ${days} 天`,
+    value: (): [Date, Date] => {
+      const r = defaultCockpitRange(pvRange.value, days);
+      return r ? [parseIsoDate(r.from), parseIsoDate(r.to)] : [new Date(), new Date()];
+    },
+  })),
+);
+</script>
+
+<template>
+  <div class="page">
+    <AsyncBlock :loading="initializing" :error="initError" :empty="noData" empty-text="暂无数据，请先在后台回填并重算汇总">
+      <div v-if="range" class="page">
+        <div class="panel bar">
+          <el-date-picker
+            :model-value="picker"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            :clearable="false"
+            :shortcuts="shortcuts"
+            @update:model-value="onPicker"
+          />
+          <span class="muted">"创作者"指区间内至少发过一次帖的员工（合著内容每位作者都算一次发帖）</span>
+        </div>
+
+        <el-tabs v-model="tab">
+          <el-tab-pane label="总览与留存" name="overview" lazy><OverviewTab :range="range" /></el-tab-pane>
+          <el-tab-pane label="创作者排行" name="ranking" lazy><RankingTab :range="range" /></el-tab-pane>
+          <el-tab-pane label="成长阶梯" name="ladder" lazy><LadderTab :range="range" /></el-tab-pane>
+          <el-tab-pane label="产出集中度" name="concentration" lazy><ConcentrationTab :range="range" /></el-tab-pane>
+        </el-tabs>
+      </div>
+    </AsyncBlock>
+  </div>
+</template>
+
+<style scoped>
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+</style>

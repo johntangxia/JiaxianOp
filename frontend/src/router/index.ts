@@ -23,6 +23,24 @@ export default createRouter({
       meta: { title: "读者分析" },
     },
     {
+      path: "/creators",
+      name: "creators",
+      component: () => import("../views/creators/CreatorsView.vue"),
+      meta: { title: "创作者分析" },
+    },
+    {
+      path: "/users",
+      name: "users",
+      component: () => import("../views/users/UsersView.vue"),
+      meta: { title: "用户分析" },
+    },
+    {
+      path: "/users/:id",
+      name: "user-detail",
+      component: () => import("../views/users/UserDetailView.vue"),
+      meta: { title: "用户 360" },
+    },
+    {
       path: "/growth",
       name: "growth",
       component: () => import("../views/growth/GrowthView.vue"),

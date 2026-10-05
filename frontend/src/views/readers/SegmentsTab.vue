@@ -8,7 +8,8 @@ import BaseChart from "../../components/BaseChart.vue";
 import { buildSegmentPieOption } from "../../charts/readerOption";
 import { useAsync } from "../../composables/useAsync";
 import { formatPercent } from "../../utils/channelMetrics";
-import { bloggerLink, type Range } from "../../utils/drill";
+import type { Range } from "../../utils/drill";
+import { userLink } from "../../utils/people";
 import { dateOnly } from "../../utils/readers";
 
 const props = defineProps<{ range: Range }>();
@@ -49,7 +50,7 @@ const lurkerData = computed(() => lurkers.data.value);
 // el-table 插槽里的 row 是 any，统一在这里断言
 const r = (row: unknown): ReaderLurker => row as ReaderLurker;
 function open(row: unknown): void {
-  void router.push(bloggerLink(r(row).employeeId, props.range));
+  void router.push(userLink(r(row).employeeId, props.range.to));
 }
 </script>
 
@@ -71,7 +72,7 @@ function open(row: unknown): void {
 
     <div class="panel">
       <div class="head">
-        <h3 class="panel-title">沉默读者名单 <span class="muted">（区间内有浏览，但没发帖也没点赞、评论、转发、收藏；按浏览次数从高到低，点姓名看他的页面）</span></h3>
+        <h3 class="panel-title">沉默读者名单 <span class="muted">（区间内有浏览，但没发帖也没点赞、评论、转发、收藏；按浏览次数从高到低，点一行看他的用户 360）</span></h3>
         <el-select v-model="dept" size="small" style="width: 180px">
           <el-option label="全部部门" :value="ALL_DEPTS" />
           <el-option v-for="d in lurkerData?.depts ?? []" :key="d" :label="d" :value="d" />
