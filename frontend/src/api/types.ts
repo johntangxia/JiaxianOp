@@ -670,3 +670,175 @@ export interface ReaderLurkerPage {
   lurkers: ReaderLurker[];
   depts: string[];
 }
+
+// ---- 增长闭环 ----
+
+export interface GrowthDeptPeriod {
+  members: number;
+  active: number;
+  penetration: number | null;
+  creators: number;
+  interactors: number;
+  lurkers: number;
+  newMembers: number;
+}
+
+export interface GrowthDepartmentRow {
+  dept: string;
+  current: GrowthDeptPeriod;
+  previous: GrowthDeptPeriod;
+}
+
+export interface GrowthDepartmentReport {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  days: number;
+  departments: GrowthDepartmentRow[];
+  overall: GrowthDepartmentRow;
+}
+
+/** hotMultiple/growth/previousPv 只有热点有，qualityMultiple 只有潜力有。 */
+export interface GrowthHotRow {
+  contentId: number;
+  type: "ARTICLE" | "VIDEO";
+  channelId: number;
+  channelName: string;
+  accountId: number;
+  accountName: string;
+  publishTime: string;
+  pv: number;
+  previousPv: number | null;
+  hotMultiple: number | null;
+  growth: number | null;
+  qualityMultiple: number | null;
+  interactionRate: number | null;
+  completionRate: number | null;
+}
+
+export interface GrowthHotReport {
+  asOf: string;
+  hot: GrowthHotRow[];
+  potential: GrowthHotRow[];
+}
+
+export type GrowthAlertStatus = "OPEN" | "ACKED" | "CLOSED";
+export type GrowthEntityType = "CHANNEL" | "ACCOUNT" | "BLOGGER" | "DEPARTMENT" | "OVERALL";
+
+export interface GrowthAlert {
+  id: number;
+  kind: string;
+  severity: "CRITICAL" | "WARN";
+  entityType: GrowthEntityType;
+  entityId: number | null;
+  entityName: string;
+  periodEnd: string;
+  message: string;
+  status: GrowthAlertStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GrowthAlertList {
+  total: number;
+  limit: number;
+  offset: number;
+  counts: Record<GrowthAlertStatus, number>;
+  alerts: GrowthAlert[];
+}
+
+export interface GrowthAlertRebuild {
+  asOf: string;
+  created: number;
+  updated: number;
+  total: number;
+}
+
+export type GrowthTaskStatus = "TODO" | "DOING" | "DONE" | "CANCELLED";
+export type GrowthTaskType =
+  | "PUSH_HOT_CONTENT"
+  | "IMPROVE_OWN_ENTRY"
+  | "RECALL_LURKERS"
+  | "ONBOARD_NEWCOMERS"
+  | "ENCOURAGE_POSTING"
+  | "OTHER";
+export type GrowthMetric =
+  | "PV"
+  | "OWN_ENTRY_SHARE"
+  | "OWN_CTR"
+  | "INTERACTION_RATE"
+  | "POSTS"
+  | "PENETRATION"
+  | "ACTIVE_USERS"
+  | "ACTIVE_RATE";
+
+export interface GrowthTask {
+  id: number;
+  title: string;
+  taskType: GrowthTaskType;
+  entityType: GrowthEntityType;
+  entityId: number | null;
+  entityName: string | null;
+  metric: GrowthMetric;
+  baselineValue: number | null;
+  targetValue: number;
+  ownerName: string | null;
+  startDate: string;
+  dueDate: string | null;
+  status: GrowthTaskStatus;
+  note: string | null;
+  alertId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GrowthTaskView {
+  task: GrowthTask;
+  currentValue: number | null;
+  progress: number | null;
+}
+
+export interface GrowthTaskList {
+  total: number;
+  limit: number;
+  offset: number;
+  asOf: string;
+  tasks: GrowthTaskView[];
+}
+
+export interface GrowthEffectPoint {
+  windowEnd: string;
+  value: number | null;
+  containsStart: boolean;
+}
+
+export interface GrowthTaskDetail {
+  view: GrowthTaskView;
+  asOf: string;
+  series: GrowthEffectPoint[];
+}
+
+export interface GrowthCreateTaskBody {
+  title: string;
+  taskType?: GrowthTaskType;
+  entityType: GrowthEntityType;
+  entityId?: number;
+  entityName?: string;
+  metric: GrowthMetric;
+  targetValue: number;
+  owner?: string;
+  startDate?: string;
+  dueDate?: string;
+  note?: string;
+  alertId?: number;
+}
+
+export interface GrowthUpdateTaskBody {
+  title?: string;
+  owner?: string;
+  status?: GrowthTaskStatus;
+  targetValue?: number;
+  dueDate?: string;
+  note?: string;
+}
