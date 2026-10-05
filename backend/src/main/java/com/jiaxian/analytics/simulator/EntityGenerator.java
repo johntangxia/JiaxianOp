@@ -157,7 +157,7 @@ public class EntityGenerator {
             for (AccountMember authorMember : authorMembers) {
                 Employee author = employeeById.get(authorMember.getEmployeeId());
                 if (author != null && author.getCommunityJoinDate() != null
-                    && author.getCommunityJoinDate().isAfter(config.getHistoryStart())) {
+                    && !author.getCommunityJoinDate().isBefore(config.getHistoryStart())) {
                     // 历史期间才加入的作者：先读一阵子再发帖
                     LocalDate firstPostDay = author.getCommunityJoinDate().plusDays(AUTHOR_WARMUP_DAYS);
                     if (firstPostDay.isAfter(earliest)) {

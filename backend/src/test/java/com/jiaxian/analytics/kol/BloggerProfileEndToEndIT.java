@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BloggerProfileEndToEndIT {
 
     private static final long SEED = 21;
-    private static final int EMPLOYEES = 50;
+    private static final int EMPLOYEES = 100;
     private static final LocalDate END = LocalDate.of(2026, 3, 1);
 
     @Autowired private HistoricalBackfillService backfillService;

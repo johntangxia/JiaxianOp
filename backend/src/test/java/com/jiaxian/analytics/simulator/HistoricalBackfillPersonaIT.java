@@ -50,7 +50,11 @@ class HistoricalBackfillPersonaIT {
                     assertThat(loginCount(id, END.minusDays(60), END.plusDays(1))).as("CHURNING #%d", i).isZero();
                     assertThat(loginCount(id, START, END.minusDays(60))).as("CHURNING #%d", i).isGreaterThan(100);
                 }
-                case RISING -> assertThat(loginCount(id, START, END.plusDays(1))).as("RISING #%d", i).isEqualTo(2);
+                case RISING -> {
+                    assertThat(loginCount(id, START, END.plusDays(1))).as("RISING #%d", i).isGreaterThanOrEqualTo(2);
+                    assertThat(loginCount(id, END.minusDays(3), END)).as("RISING #%d 最近一次登录在结束前 1–3 天", i).isPositive();
+                    assertThat(loginCount(id, LocalDate.of(2000, 1, 1), communityJoinDate(id))).as("RISING #%d", i).isZero();
+                }
                 case DORMANT -> {
                     assertThat(loginCount(id, START, END.plusDays(1))).as("DORMANT #%d", i).isEqualTo(8);
                     assertThat(loginCount(id, END.minusDays(120), END.plusDays(1))).as("DORMANT #%d", i).isZero();

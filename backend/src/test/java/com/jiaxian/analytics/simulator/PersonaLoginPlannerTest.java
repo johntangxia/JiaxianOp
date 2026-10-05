@@ -64,13 +64,13 @@ class PersonaLoginPlannerTest {
     }
 
     @Test
-    void risingLogsInAboutTwentyPercentOfDaysSinceJoining() {
+    void risingLogsInAboutTwelvePercentOfDaysSinceJoining() {
         long total = 0;
         for (long seed = 1; seed <= 50; seed++) {
             total += PersonaLoginPlanner.plan(BloggerPersona.RISING, START, END, END.minusDays(50), new Random(seed)).size();
         }
 
-        assertThat(total / 50.0).isBetween(5.0, 12.0);   // 约 47 天 × 0.2 × 0.81 ≈ 8
+        assertThat(total / 50.0).isBetween(3.0, 8.0);   // 约 47 天 × 0.12 × 0.81 ≈ 4.6，加上保证的最近一次登录
     }
 
     @Test

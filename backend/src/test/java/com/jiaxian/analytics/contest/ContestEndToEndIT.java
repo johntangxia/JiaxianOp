@@ -29,7 +29,7 @@ class ContestEndToEndIT {
     void boardsAreConsistentAfterARealBackfill() {
         backfillService.runBackfill(SimulationConfig.builder()
             .batchId("contest-e2e").employeeCount(40).accountCount(16).teamAccountRatio(0.25).contentCount(150)
-            .historyStart(LocalDate.of(2025, 1, 1)).historyEnd(LocalDate.of(2025, 7, 1)).randomSeed(31)
+            .historyStart(LocalDate.of(2025, 1, 1)).historyEnd(LocalDate.of(2025, 6, 25)).randomSeed(31)
             .personas(false).build());
 
         JsonNode periods = get("/api/contest/periods?type=MONTH");

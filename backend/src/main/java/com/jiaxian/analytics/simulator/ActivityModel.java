@@ -15,7 +15,7 @@ public final class ActivityModel {
     static final double REGULAR_DAILY = 0.7;
     static final double OCCASIONAL_DAILY = 0.10;
     static final double STAR_DAILY = 0.8;
-    static final double RISING_DAILY = 0.2;
+    static final double RISING_DAILY = 0.12;
     static final double DORMANT_DAILY = 0.03;
     /** 浏览热度的半衰期（小时）：发布后每过两天，单位时间内的浏览量减半。 */
     static final double VIEW_HALF_LIFE_HOURS = 48;
