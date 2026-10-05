@@ -59,7 +59,7 @@ class RealtimePipelineIT {
         producer.start(RealtimeSimulationConfig.builder()
             .batchId(batchId).intervalMillis(100).eventsPerBatch(20).build());
         try {
-            await().atMost(60, TimeUnit.SECONDS).until(() -> producer.status().getSentCount() >= 60);
+            await().atMost(60, TimeUnit.SECONDS).until(() -> producer.status().getSentCount() >= 800);   // 互动只占事件的约 2%，要发够多才一定有
         } finally {
             producer.stop();
         }

@@ -13,7 +13,7 @@ public final class ActivityModel {
 
     static final double WEEKEND_FACTOR = 0.35;
     static final double REGULAR_DAILY = 0.7;
-    static final double OCCASIONAL_DAILY = 0.10;
+    static final double OCCASIONAL_DAILY = 0.05;
     static final double STAR_DAILY = 0.8;
     static final double RISING_DAILY = 0.12;
     static final double DORMANT_DAILY = 0.03;

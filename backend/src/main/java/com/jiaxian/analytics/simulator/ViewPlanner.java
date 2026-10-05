@@ -232,7 +232,12 @@ public final class ViewPlanner {
     }
 
     private static double weight(Candidate candidate, LocalDateTime time) {
-        double ageHours = java.time.Duration.between(candidate.publishTime(), time).toMinutes() / 60.0;
-        return Math.pow(candidate.weight(), POPULARITY_EXPONENT) * Math.pow(0.5, ageHours / AGE_HALF_LIFE_HOURS);
+        return attractiveness(candidate.weight(), candidate.publishTime(), time);
+    }
+
+    /** 一篇内容此刻被挑中的相对权重：热度^0.6 × 半衰期 2 天的衰减（还没发布的按刚发布算）。历史回填和实时模拟共用。 */
+    public static double attractiveness(double popularityWeight, LocalDateTime publishTime, LocalDateTime now) {
+        double ageHours = Math.max(0, java.time.Duration.between(publishTime, now).toMinutes() / 60.0);
+        return Math.pow(popularityWeight, POPULARITY_EXPONENT) * Math.pow(0.5, ageHours / AGE_HALF_LIFE_HOURS);
     }
 }
