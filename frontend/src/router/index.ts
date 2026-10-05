@@ -23,6 +23,12 @@ export default createRouter({
       meta: { title: "读者分析" },
     },
     {
+      path: "/growth",
+      name: "growth",
+      component: () => import("../views/growth/GrowthView.vue"),
+      meta: { title: "增长闭环" },
+    },
+    {
       path: "/accounts/:id",
       name: "account-detail",
       component: () => import("../views/drill/AccountView.vue"),
