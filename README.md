@@ -44,7 +44,7 @@
 ```bash
 cp .env.example .env                       # 可选：按需修改口令和端口
 docker compose --profile app up -d --build # 构建并拉起全栈（首次构建要几分钟）
-scripts/seed-demo.sh                       # 灌入演示数据（历史回填 + 重算，约一两分钟）
+scripts/seed-demo.sh                       # 灌入演示数据（历史回填 + 重算，约三四分钟）
 scripts/smoke-test.sh                      # 可选：冒烟测试
 ```
 
@@ -118,6 +118,9 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 - 所有 `/api/admin/**` 接口（包括会清空数据的历史回填）**没有鉴权**，这是整个项目一直约定的范围——**必须部署在内网，不能暴露到公网**。
 - 单实例部署，不含高可用、HTTPS、日志收集和监控告警。
 - 默认口令仅用于演示。
+- **模拟数据的量级**：演示库（1000 员工、100 账号、1500 篇内容、18 个月）约 26 万次浏览、80 万条曝光、70 万条积分流水。浏览由登录产生，`viewsPerActiveDay`（每个登录日平均浏览次数，默认 2.0，回填接口可选参数）是数据量的旋钮，调到 1.0 约减半；实时模拟器（Kafka）的事件速率不随它变化。
+- **KOL 名单人数**：`application.yml` 里是 1000（企业规模的设计值）；演示用的 `docker-compose.yml` 通过 `ANALYTICS_KOL_TOP_N`（默认 600）覆盖，让 1000 员工的演示数据里六个分层都出现。明星 KOL 占比由五分位打分决定，名单越大占比越高。
+- **内存**：后端容器的 JVM 默认用 50% 内存（`JAVA_OPTS`），在 4GB 的 Docker 虚拟机里 75% 会把数据库挤垮；`docker compose --build` 编译时内存也很紧，偶尔会让数据库容器自动重启，等它健康后再灌数据。
 
 ## 设计文档与实施计划
 
@@ -143,3 +146,4 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 | 读者侧分析 | [reader-analytics](docs/superpowers/specs/2026-10-05-reader-analytics-design.md) | [reader-analytics](docs/superpowers/plans/2026-10-05-reader-analytics.md) |
 | 增长闭环 | [growth-loop](docs/superpowers/specs/2026-10-05-growth-loop-design.md) | [growth-loop](docs/superpowers/plans/2026-10-05-growth-loop.md) |
 | 创作者与用户分析 | [creator-user-analytics](docs/superpowers/specs/2026-10-05-creator-user-analytics-design.md) | [creator-user-analytics](docs/superpowers/plans/2026-10-05-creator-user-analytics.md) |
+| 模拟数据校准 | [simulation-calibration](docs/superpowers/specs/2026-10-06-simulation-calibration-design.md) | [simulation-calibration](docs/superpowers/plans/2026-10-06-simulation-calibration.md) |

@@ -228,6 +228,8 @@
 
 > 实现时的取舍（见 [创作者与用户分析设计](2026-10-05-creator-user-analytics-design.md)）：新增“创作者分析”（`/creators`：总览与留存、排行、成长阶梯、产出集中度）和“用户分析”（`/users`：生命周期与流转矩阵、价值分层、兴趣与跨领域、用户列表；`/users/:id`：用户 360）。全部在请求内现算、不缓存，创作者指窗口内发过帖的员工；没有新表。
 
+> 实现时的取舍（见 [模拟数据校准设计](2026-10-06-simulation-calibration-design.md)）：浏览改为由登录产生（`ViewPlanner`，每个登录日 Poisson(`viewsPerActiveDay`) 次，内容按热度和新鲜度挑），PV 从 9 千提到 26 万，互动占 PV 约 3%；画像比例缩小为 3/2/3/5%，淡出分散并允许回流，关注和账号做成幂律长尾；历史不再有越过结束日的浏览，演示数据的结束日改为今天；清空旧数据改用 JDBC 批量删除，浏览/曝光/搜索/积分用 `ViewBatchWriter` 批量写入。
+
 ## 9. 部署与测试
 
 **部署**：本地/演示环境用 `docker-compose` 一键拉起 OpenGauss + Redis + Kafka + Spring Boot + Vue（Nginx托管前端静态资源）；配置通过 `application.yml`+环境变量管理，不硬编码。该 compose 文件本身也作为正式团队的最小可运行参考环境。
