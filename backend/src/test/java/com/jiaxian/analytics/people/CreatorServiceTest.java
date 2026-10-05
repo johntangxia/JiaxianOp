@@ -198,6 +198,22 @@ class CreatorServiceTest {
     }
 
     @Test
+    void ladderLeavesMembersWhoJoinedBeforeTheDataStartedOutOfTheTimings() {
+        LocalDate asOfDay = LocalDate.of(2025, 6, 30);
+        when(readers.members()).thenReturn(List.of(member(1, "甲", LocalDate.of(2024, 6, 1)), member(2, "甲", LocalDate.of(2025, 1, 10))));
+        when(readers.loginPostSpan()).thenReturn(Optional.of(new ReaderQueryRepository.DateSpan(LocalDate.of(2025, 1, 1), asOfDay)));
+        // 员工 1 加入得更早，数据开始后才第一次浏览（距加入 ~220 天，会把中位数拉偏）；员工 2 在数据里加入，3 天后首次浏览
+        when(people.lifetimeFacts(asOfDay)).thenReturn(List.of(
+            new LifetimeFacts(1, LocalDateTime.of(2025, 1, 2, 9, 0), LocalDateTime.of(2025, 1, 2, 9, 0), null, null, 0, LocalDateTime.of(2025, 1, 2, 9, 0)),
+            new LifetimeFacts(2, LocalDateTime.of(2025, 1, 13, 9, 0), LocalDateTime.of(2025, 1, 13, 9, 0), null, null, 0, LocalDateTime.of(2025, 1, 13, 9, 0))));
+
+        CreatorLadderReport report = service.ladder(asOfDay);
+
+        assertThat(report.reach().get(0).reached()).isEqualTo(2);              // 到达人数两人都算
+        assertThat(report.reach().get(0).medianDays()).isEqualTo(3.0);         // 耗时只看员工 2
+    }
+
+    @Test
     void ladderDefaultsTheAsOfDayToTheLatestLoginOrPostDay() {
         when(readers.loginPostSpan()).thenReturn(Optional.of(new ReaderQueryRepository.DateSpan(FROM, TO)));
 

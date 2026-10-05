@@ -150,6 +150,33 @@ else
   bad "任务指标和对象不匹配返回 400"
 fi
 
+echo "创作者与用户分析"
+expect_json "创作者总览（有汇总、序列和留存同期群）" "$WEB_URL/api/creators/overview?from=$READER_FROM&to=$READER_TO" \
+  'd["summary"]["creators"] > 0 and len(d["series"]) >= 1 and isinstance(d["cohorts"], list)'
+expect_json "创作者排行（每人发帖数大于 0）" "$WEB_URL/api/creators/ranking?from=$READER_FROM&to=$READER_TO&sort=POSTS&limit=10" \
+  'd["total"] > 0 and all(c["posts"] > 0 for c in d["creators"])'
+expect_json "创作者成长阶梯（6 个阶段之和 = 成员数）" "$WEB_URL/api/creators/ladder" \
+  'len(d["stages"]) == 6 and sum(s["count"] for s in d["stages"]) == d["members"]'
+expect_json "创作者集中度（前 N 名占比递增）" "$WEB_URL/api/creators/concentration?from=$READER_FROM&to=$READER_TO" \
+  'd["shares"][0]["pvShare"] <= d["shares"][1]["pvShare"] <= d["shares"][3]["pvShare"] and 0 <= d["gini"] <= 1'
+expect_json "用户生命周期（阶段之和 = 成员数，矩阵行合计 = 上一时点人数）" "$WEB_URL/api/users/lifecycle" \
+  'sum(s["count"] for s in d["stages"]) == d["members"] and all(d["transitions"][i]["total"] == d["stages"][i]["previousCount"] for i in range(6))'
+expect_json "用户价值分层（5 层之和 = 成员数）" "$WEB_URL/api/users/value" \
+  'len(d["segments"]) == 5 and sum(s["count"] for s in d["segments"]) == d["members"]'
+expect_json "兴趣与跨领域" "$WEB_URL/api/users/interests?days=90" 'len(d["depts"]) > 0'
+expect_json "用户列表（按阶段筛选）" "$WEB_URL/api/users/list?stage=ACTIVE&limit=5" \
+  'd["total"] > 0 and all(u["stage"] == "ACTIVE" for u in d["users"])'
+SMOKE_USER=$(json_value "$WEB_URL/api/users/list?limit=1&sort=ACTIVE_DAYS" 'd["users"][0]["employeeId"]') || SMOKE_USER=""
+if [[ -n $SMOKE_USER ]]; then
+  expect_json "用户 360（12 周时间轴、4 种来源）" "$WEB_URL/api/users/$SMOKE_USER" \
+    'len(d["timeline"]) == 12 and len(d["reading"]["sources"]) == 4 and d["basic"]["stage"] is not None'
+else
+  bad "用户 360"
+fi
+expect_status "不存在的用户返回 404" "$WEB_URL/api/users/-1" 404
+expect_status "创作者排行拒绝非法排序" "$WEB_URL/api/creators/ranking?from=$READER_FROM&to=$READER_TO&sort=NAME" 400
+expect_status "SPA 深层路径 /users/12" "$WEB_URL/users/12" 200
+
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'

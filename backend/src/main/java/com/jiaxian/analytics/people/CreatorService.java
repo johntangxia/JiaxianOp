@@ -156,6 +156,8 @@ public class CreatorService {
         Set<Long> stars = kolDate == null ? Set.of() : people.starKols(kolDate);
         Map<Long, LifetimeFacts> facts = new HashMap<>();
         people.lifetimeFacts(asOf).forEach(f -> facts.put(f.employeeId(), f));
+        // 数据从 dataStart 才开始有记录：更早加入的老成员，"首次"行为其实是数据开始后的第一次，算耗时会严重偏大，所以不计入耗时
+        LocalDate dataStart = readers.loginPostSpan().map(ReaderQueryRepository.DateSpan::from).orElse(null);
 
         Map<CreatorStage, Long> counts = new EnumMap<>(CreatorStage.class);
         long members = 0;
@@ -177,15 +179,15 @@ public class CreatorService {
             }
             if (f.firstView() != null) {
                 viewed++;
-                addDays(viewDays, member, f.firstView().toLocalDate());
+                addDays(viewDays, member, f.firstView().toLocalDate(), dataStart);
             }
             if (f.firstInteraction() != null) {
                 interacted++;
-                addDays(interactionDays, member, f.firstInteraction().toLocalDate());
+                addDays(interactionDays, member, f.firstInteraction().toLocalDate(), dataStart);
             }
             if (f.firstPost() != null) {
                 posted++;
-                addDays(postedDays, member, f.firstPost().toLocalDate());
+                addDays(postedDays, member, f.firstPost().toLocalDate(), dataStart);
             }
         }
         List<LadderStageCount> stages = new ArrayList<>();
@@ -204,9 +206,9 @@ public class CreatorService {
         return total == 0 ? null : count / (double) total;
     }
 
-    /** 从加入社区到那一步的天数；没有加入日期的旧数据没法算，跳过；早于加入日的记 0。 */
-    private static void addDays(List<Long> days, Member member, LocalDate reached) {
-        if (member.joinDate() != null) {
+    /** 从加入社区到那一步的天数；没有加入日期、或加入早于数据开始日的没法算，跳过；早于加入日的记 0。 */
+    private static void addDays(List<Long> days, Member member, LocalDate reached, LocalDate dataStart) {
+        if (member.joinDate() != null && (dataStart == null || !member.joinDate().isBefore(dataStart))) {
             days.add(Math.max(0, ChronoUnit.DAYS.between(member.joinDate(), reached)));
         }
     }

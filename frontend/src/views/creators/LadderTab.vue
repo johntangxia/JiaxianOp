@@ -37,7 +37,7 @@ const option = computed(() => (data.value ? buildLadderOption(data.value.stages)
       </div>
 
       <div class="panel">
-        <h3 class="panel-title">读者走向创作者：到达率与耗时 <span class="muted">（各步骤独立统计；耗时 = 从加入社区到那一步的中位天数，只统计走到的人）</span></h3>
+        <h3 class="panel-title">读者走向创作者：到达率与耗时 <span class="muted">（各步骤独立统计；耗时 = 从加入社区到那一步的中位天数，只统计走到了、且在数据开始之后才加入的人）</span></h3>
         <el-table :data="data.reach" size="small">
           <el-table-column label="步骤" prop="label" min-width="120" />
           <el-table-column label="到达人数" prop="reached" min-width="100" />
