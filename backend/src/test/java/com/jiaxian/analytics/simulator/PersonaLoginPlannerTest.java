@@ -40,11 +40,11 @@ class PersonaLoginPlannerTest {
     }
 
     @Test
-    void risingLogsInExactlyTwiceTwentyAndFourDaysBeforeTheEnd() {
+    void risingLogsInExactlyTwiceTwentyAndOneDaysBeforeTheEnd() {
         List<LocalDateTime> logins = plan(BloggerPersona.RISING);
 
         assertThat(logins).containsExactlyInAnyOrder(
-            END.minusDays(20).atTime(10, 0), END.minusDays(4).atTime(10, 0));
+            END.minusDays(20).atTime(10, 0), END.minusDays(1).atTime(10, 0));
     }
 
     @Test
@@ -52,7 +52,7 @@ class PersonaLoginPlannerTest {
         List<LocalDateTime> logins = PersonaLoginPlanner.plan(
             BloggerPersona.RISING, END.minusDays(10), END, new Random(7));
 
-        assertThat(logins).containsExactly(END.minusDays(4).atTime(10, 0));
+        assertThat(logins).containsExactly(END.minusDays(1).atTime(10, 0));
     }
 
     @Test

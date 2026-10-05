@@ -9,7 +9,7 @@ import java.util.Random;
 /**
  * 按画像规划一个员工整个历史里的登录时间（end = historyEnd，所有登录都落在 [historyStart, end) 内）：
  * STAR 每天约 80% 的概率登录一次；CHURNING 与 STAR 相同但 end−60 天之后不再登录；
- * RISING 只在 end−20、end−4 各登录一次；DORMANT 在 [historyStart, end−120) 内随机登录 8 次。
+ * RISING 只在 end−20、end−1 各登录一次（最近一次要足够近：模拟里有很多几乎每天登录的常驻员工，4 天前在新近度排名里只是中游）；DORMANT 在 [historyStart, end−120) 内随机登录 8 次。
  * 这些常量是经验值，用来让各画像落入预期的 RFM 分层，必要时可调整。
  */
 public final class PersonaLoginPlanner {
@@ -18,7 +18,7 @@ public final class PersonaLoginPlanner {
     static final int CHURN_SILENT_DAYS = 60;
     static final int DORMANT_SILENT_DAYS = 120;
     static final int DORMANT_LOGIN_COUNT = 8;
-    static final int[] RISING_DAYS_BEFORE_END = {20, 4};
+    static final int[] RISING_DAYS_BEFORE_END = {20, 1};
 
     private PersonaLoginPlanner() {
     }

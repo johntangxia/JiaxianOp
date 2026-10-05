@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS action_playbook (
 | 画像 | 比例 | 登录规律（`end` = `historyEnd`） |
 |---|---|---|
 | `STAR` 持续活跃 | 10% | 全程每天约 80% 的概率登录一次 |
-| `RISING` 新人 | 10% | 只在 `end−20`、`end−4` 各登录一次 |
+| `RISING` 新人 | 10% | 只在 `end−20`、`end−1` 各登录一次（数据基础计划把 `end−4` 改成了 `end−1`：模拟里有大量几乎每天登录的常驻员工，4 天前在新近度排名里只是中游，落不进"成长潜力新人"） |
 | `CHURNING` 流失者 | 10% | 与 `STAR` 一样，但 `end−60` 之后不再登录 |
 | `DORMANT` 沉寂者 | 20% | 在 `[historyStart, end−120)` 内随机登录 8 次，之后不登录 |
 | `RANDOM` | 其余 | 现有随机登录逻辑 |

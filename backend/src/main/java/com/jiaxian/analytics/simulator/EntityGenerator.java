@@ -21,7 +21,7 @@ public class EntityGenerator {
     static final int MAX_DAYS_BEFORE_START = 730;
     /** 新成员最晚在历史结束前这么多天加入，保证他们有时间产生行为。 */
     static final int NEWCOMER_MIN_DAYS_BEFORE_END = 14;
-    /** RISING 画像的加入日：历史结束前 21–25 天（RISING 的两次登录在结束前 20 天和 4 天）。 */
+    /** RISING 画像的加入日：历史结束前 21–25 天（RISING 的两次登录在结束前 20 天和 1 天）。 */
     static final int RISING_JOIN_MIN_DAYS_BEFORE_END = 21;
     static final double COMMON_LURKER_RATIO = 0.35;
     static final double SAME_DOMAIN_POST_RATIO = 0.7;
