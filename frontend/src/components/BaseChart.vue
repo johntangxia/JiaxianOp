@@ -9,6 +9,7 @@ import type { EChartsOption } from "echarts";
 echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 const props = withDefaults(defineProps<{ option: EChartsOption; height?: string }>(), { height: "360px" });
+const emit = defineEmits<{ chartClick: [params: { name: string; seriesName?: string; dataIndex: number }] }>();
 
 const container = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
@@ -20,6 +21,7 @@ onMounted(() => {
   }
   chart = echarts.init(container.value);
   chart.setOption(props.option as echarts.EChartsCoreOption);
+  chart.on("click", (params) => emit("chartClick", params as unknown as { name: string; seriesName?: string; dataIndex: number }));
   observer = new ResizeObserver(() => chart?.resize());
   observer.observe(container.value);
 });

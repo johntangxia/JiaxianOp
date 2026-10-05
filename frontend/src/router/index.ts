@@ -17,6 +17,30 @@ export default createRouter({
       meta: { title: "频道详情" },
     },
     {
+      path: "/accounts/:id",
+      name: "account-detail",
+      component: () => import("../views/drill/AccountView.vue"),
+      meta: { title: "账号详情" },
+    },
+    {
+      path: "/bloggers/:id",
+      name: "blogger-detail",
+      component: () => import("../views/drill/BloggerView.vue"),
+      meta: { title: "博主详情（作者视角）" },
+    },
+    {
+      path: "/contents/:id",
+      name: "content-detail",
+      component: () => import("../views/drill/ContentView.vue"),
+      meta: { title: "内容详情" },
+    },
+    {
+      path: "/compare",
+      name: "compare",
+      component: () => import("../views/drill/CompareView.vue"),
+      meta: { title: "对比分析" },
+    },
+    {
       path: "/contest",
       name: "contest",
       component: () => import("../views/contest/ContestView.vue"),

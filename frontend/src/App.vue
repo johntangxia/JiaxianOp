@@ -8,7 +8,8 @@ const route = useRoute();
 // 详情页高亮对应的一级菜单
 const activeMenu = computed(() => {
   if (route.path.startsWith("/kol")) return "/kol";
-  if (route.path.startsWith("/channels")) return "/channels";
+  if (route.path.startsWith("/channels") || route.path.startsWith("/accounts") || route.path.startsWith("/contents")) return "/channels";
+  if (route.path.startsWith("/bloggers")) return "/channels";
   return route.path;
 });
 </script>
@@ -22,6 +23,7 @@ const activeMenu = computed(() => {
           <el-menu-item index="/">总览看板</el-menu-item>
           <el-menu-item index="/channels">频道驾驶舱</el-menu-item>
           <el-menu-item index="/contest">频道竞赛榜</el-menu-item>
+          <el-menu-item index="/compare">对比分析</el-menu-item>
           <el-menu-item index="/leaderboard">积分排行榜</el-menu-item>
           <el-menu-item index="/kol">KOL 管理</el-menu-item>
           <el-sub-menu index="admin">

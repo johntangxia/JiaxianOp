@@ -2,7 +2,8 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchChannelDetail } from "../../api/channels";
-import type { Granularity, TopContent } from "../../api/types";
+import { fetchChannelAccounts } from "../../api/drill";
+import type { BreakdownRow, Granularity, TopContent } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import BaseChart from "../../components/BaseChart.vue";
 import { buildChannelTrendOption } from "../../charts/channelTrendOption";
@@ -11,6 +12,8 @@ import { useAsync } from "../../composables/useAsync";
 import { formatPercent, formatSeconds, severityTagType } from "../../utils/channelMetrics";
 import { parseIsoDate } from "../../utils/dateRange";
 import { formatNumber } from "../../utils/format";
+import { accountLink, channelLink } from "../../utils/drill";
+import BreakdownTable from "../drill/BreakdownTable.vue";
 import DeltaText from "./DeltaText.vue";
 
 const route = useRoute();
@@ -42,6 +45,17 @@ watch(
   { immediate: true },
 );
 
+// 领域频道下的账号（下钻的下一级）；综合频道没有内容，不请求
+const accounts = useAsync((id: number, f: string, t: string) => fetchChannelAccounts(id, f, t));
+watch(
+  [channelId, from, to, () => detail.data.value?.row.category],
+  () => {
+    if (valid.value && detail.data.value && detail.data.value.row.category !== "综合频道") {
+      void accounts.run(channelId.value, from.value, to.value);
+    }
+  },
+);
+
 const row = computed(() => detail.data.value?.row ?? null);
 const composite = computed(() => row.value?.category === "综合频道");
 const current = computed(() => row.value?.current ?? null);
@@ -55,6 +69,19 @@ const topContents = computed<TopContent[]>(() => detail.data.value?.topContents 
 
 function formatTime(time: string): string {
   return time.replace("T", " ").slice(0, 16);
+}
+
+function openAccount(account: BreakdownRow): void {
+  void router.push(accountLink(account.id, { from: from.value, to: to.value }));
+}
+
+// 综合频道的构成图：点一块进入对应的领域频道
+function onPieClick(params: { name: string }): void {
+  const slice = detail.data.value?.composition.find((s) => s.label === params.name);
+  const domainId = slice ? Number(slice.key) : NaN;
+  if (composite.value && Number.isInteger(domainId)) {
+    void router.push(channelLink(domainId, { from: from.value, to: to.value }));
+  }
 }
 
 function back(): void {
@@ -116,8 +143,16 @@ function back(): void {
             </div>
             <div class="panel">
               <h3 class="panel-title">{{ composite ? "点击内容所属领域" : "PV 来源构成" }}</h3>
-              <BaseChart :option="pieOption" height="320px" />
+              <BaseChart :option="pieOption" height="320px" @chart-click="onPieClick" />
+              <p v-if="composite" class="muted">点一块进入对应领域频道</p>
             </div>
+          </div>
+
+          <div v-if="!composite" class="panel">
+            <h3 class="panel-title">该频道下的账号 <span class="muted">（指标只统计该频道里的内容；点一行进入账号）</span></h3>
+            <AsyncBlock :loading="accounts.loading.value" :error="accounts.error.value" :empty="false">
+              <BreakdownTable v-if="accounts.data.value" :rows="accounts.data.value.accounts" name-label="账号" extra-label="类型" show-followers @open="openAccount" />
+            </AsyncBlock>
           </div>
 
           <div class="panel">
