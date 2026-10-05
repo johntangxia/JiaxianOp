@@ -26,6 +26,9 @@ public class ReaderQueryRepository {
                          LocalDate lastActive) {
     }
 
+    public record DateSpan(LocalDate from, LocalDate to) {
+    }
+
     public record LurkerPage(long total, List<Lurker> lurkers) {
     }
 
@@ -126,6 +129,15 @@ public class ReaderQueryRepository {
             (rs, i) -> new Lurker(rs.getLong(1), rs.getString(2), rs.getString(3), day(rs.getTimestamp(4)), rs.getLong(5),
                 rs.getLong(6), day(rs.getTimestamp(7))), params.toArray());
         return new LurkerPage(total, lurkers);
+    }
+
+    /** 登录/发帖行为的日期范围；没有记录时为空。模拟数据里它的终点就是模拟的"现在"（浏览会延续到历史结束日之后，不能算）。 */
+    public Optional<DateSpan> loginPostSpan() {
+        return jdbc.query("SELECT MIN(occur_time), MAX(occur_time) FROM active_action_log WHERE action_type IN ('LOGIN', 'POST')",
+            rs -> {
+                Timestamp min = rs.next() ? rs.getTimestamp(1) : null;
+                return min == null ? Optional.<DateSpan>empty() : Optional.of(new DateSpan(day(min), day(rs.getTimestamp(2))));
+            });
     }
 
     /** 成员的部门列表（去重、排序），给沉默读者名单的部门筛选用。 */

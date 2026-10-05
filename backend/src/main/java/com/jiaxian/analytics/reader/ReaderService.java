@@ -39,6 +39,11 @@ public class ReaderService {
         }
     }
 
+    /** 读者分析的默认数据范围：登录/发帖行为的起止日；没有数据时 from/to 都是 null。 */
+    public DataRange range() {
+        return repository.loginPostSpan().map(span -> new DataRange(span.from(), span.to())).orElse(new DataRange(null, null));
+    }
+
     public ActivityReport activity(LocalDate from, LocalDate to, Granularity granularity) {
         validate(from, to);
         List<Member> members = repository.members();

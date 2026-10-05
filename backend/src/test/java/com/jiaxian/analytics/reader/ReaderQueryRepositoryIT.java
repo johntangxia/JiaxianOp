@@ -185,4 +185,16 @@ class ReaderQueryRepositoryIT {
     void deptsAreListedOnce() {
         assertThat(repository.depts()).contains("读者测试部A", "读者测试部B").doesNotHaveDuplicates().isSorted();
     }
+
+    @Test
+    void loginPostSpanIgnoresViewsAndEndsAtTheLastLoginOrPost() {
+        // 夹具里 06-05 有发帖、06-06 有登录；再加一条更晚的浏览，不应改变终点
+        action(e3, ActiveActionType.VIEW, 28, 10);
+        action(e1, ActiveActionType.LOGIN, 7, 9);
+
+        ReaderQueryRepository.DateSpan span = repository.loginPostSpan().orElseThrow();
+
+        assertThat(span.to()).isAfterOrEqualTo(LocalDate.of(2019, 6, 7));
+        assertThat(span.to()).isNotEqualTo(LocalDate.of(2019, 6, 28));
+    }
 }

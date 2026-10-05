@@ -88,4 +88,12 @@ class ReaderControllerIT {
             assertThat(response.getBody()).as(path).isNotBlank();
         }
     }
+
+    @Test
+    void rangeHasFromAndTo() {
+        JsonNode body = json("/api/readers/range");
+
+        assertThat(body.has("from")).isTrue();
+        assertThat(body.has("to")).isTrue();
+    }
 }

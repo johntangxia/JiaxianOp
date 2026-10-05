@@ -199,4 +199,13 @@ class ReaderServiceTest {
         assertThatThrownBy(() -> service.lurkers(FROM, TO, null, 101, 0)).isInstanceOf(InvalidReaderQueryException.class);
         assertThatThrownBy(() -> service.lurkers(FROM, TO, null, 20, -1)).isInstanceOf(InvalidReaderQueryException.class);
     }
+
+    @Test
+    void rangeIsTheLoginPostSpanOrEmpty() {
+        when(repository.loginPostSpan()).thenReturn(Optional.of(new ReaderQueryRepository.DateSpan(FROM, TO)));
+        assertThat(service.range()).isEqualTo(new DataRange(FROM, TO));
+
+        when(repository.loginPostSpan()).thenReturn(Optional.empty());
+        assertThat(service.range()).isEqualTo(new DataRange(null, null));
+    }
 }

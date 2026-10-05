@@ -19,6 +19,12 @@ public class ReaderController {
         this.service = service;
     }
 
+    /** 默认数据范围：登录/发帖行为的起止日（模拟数据里终点就是模拟的"现在"）；没有数据时都是 null。 */
+    @GetMapping("/range")
+    public DataRange range() {
+        return service.range();
+    }
+
     /** 活跃与增长：周期内去重活跃人数（日 = DAU、周 = WAU、月 = MAU）、新增成员、活跃率，以及截至 to 的汇总。 */
     @GetMapping("/activity")
     public ActivityReport activity(

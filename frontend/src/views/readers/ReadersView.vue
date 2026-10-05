@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { fetchPvRange } from "../../api/analytics";
+import { fetchReaderRange } from "../../api/readers";
 import type { PvRange } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { defaultCockpitRange } from "../../utils/channelMetrics";
@@ -19,7 +19,7 @@ const tab = ref("activity");
 
 onMounted(async () => {
   try {
-    pvRange.value = await fetchPvRange();
+    pvRange.value = await fetchReaderRange();
     const initial = defaultCockpitRange(pvRange.value);
     if (initial) {
       range.value = initial;
@@ -42,7 +42,7 @@ function onPicker(value: [Date, Date] | null): void {
   }
 }
 
-// 快捷项：以 PV 数据最后一天为终点
+// 快捷项：以登录/发帖行为的最后一天（模拟的"现在"）为终点
 const shortcuts = computed(() =>
   [30, 90, 180, 365].map((days) => ({
     text: days === 365 ? "近一年" : days === 180 ? "近半年" : `近 ${days} 天`,

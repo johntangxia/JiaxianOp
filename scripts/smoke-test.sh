@@ -105,18 +105,19 @@ expect_status "对比拒绝只选一个对象" "$WEB_URL/api/compare?type=CHANNE
 expect_status "不存在的账号返回 404" "$WEB_URL/api/drill/accounts/999999999?from=$COCKPIT_FROM&to=$TO" 404
 
 echo "读者侧分析"
-READER_FROM=$(python3 -c "import datetime as d; print(d.date.fromisoformat('$TO') - d.timedelta(days=179))")
-expect_json "活跃与增长（DAU/WAU/MAU 与趋势）" "$WEB_URL/api/readers/activity?from=$READER_FROM&to=$TO&granularity=WEEK" \
+READER_TO=$(json_value "$WEB_URL/api/readers/range" 'd["to"]')
+READER_FROM=$(python3 -c "import datetime as d; print(d.date.fromisoformat('$READER_TO') - d.timedelta(days=179))")
+expect_json "活跃与增长（DAU/WAU/MAU 与趋势）" "$WEB_URL/api/readers/activity?from=$READER_FROM&to=$READER_TO&granularity=WEEK" \
   'len(d["points"]) > 0 and d["summary"]["mau"] >= d["summary"]["wau"] >= d["summary"]["dau"] and d["summary"]["members"] > 0'
-expect_json "留存同期群（按月）" "$WEB_URL/api/readers/retention?granularity=MONTH&from=$READER_FROM&to=$TO" \
+expect_json "留存同期群（按月）" "$WEB_URL/api/readers/retention?granularity=MONTH&from=$READER_FROM&to=$READER_TO" \
   'len(d["cohorts"]) > 0 and all(len(c["retention"]) == d["periods"] for c in d["cohorts"])'
-expect_json "激活漏斗（5 步）" "$WEB_URL/api/readers/funnel?from=$READER_FROM&to=$TO" 'len(d["steps"]) == 5 and d["joined"] > 0'
-expect_json "读者分层（5 类，合计 = 成员数）" "$WEB_URL/api/readers/segments?from=$READER_FROM&to=$TO" \
+expect_json "激活漏斗（5 步）" "$WEB_URL/api/readers/funnel?from=$READER_FROM&to=$READER_TO" 'len(d["steps"]) == 5 and d["joined"] > 0'
+expect_json "读者分层（5 类，合计 = 成员数）" "$WEB_URL/api/readers/segments?from=$READER_FROM&to=$READER_TO" \
   'len(d["segments"]) == 5 and sum(s["count"] for s in d["segments"]) == d["members"]'
-expect_json "沉默读者名单（有姓名）" "$WEB_URL/api/readers/lurkers?from=$READER_FROM&to=$TO&limit=5" \
+expect_json "沉默读者名单（有姓名）" "$WEB_URL/api/readers/lurkers?from=$READER_FROM&to=$READER_TO&limit=5" \
   'd["total"] > 0 and len(d["lurkers"]) > 0 and all(l["name"] for l in d["lurkers"])'
-expect_status "读者分析拒绝非法的同期群粒度" "$WEB_URL/api/readers/retention?granularity=DAY&from=$READER_FROM&to=$TO" 400
-expect_status "沉默读者名单拒绝超大的 limit" "$WEB_URL/api/readers/lurkers?from=$READER_FROM&to=$TO&limit=101" 400
+expect_status "读者分析拒绝非法的同期群粒度" "$WEB_URL/api/readers/retention?granularity=DAY&from=$READER_FROM&to=$READER_TO" 400
+expect_status "沉默读者名单拒绝超大的 limit" "$WEB_URL/api/readers/lurkers?from=$READER_FROM&to=$READER_TO&limit=101" 400
 
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
