@@ -842,3 +842,282 @@ export interface GrowthUpdateTaskBody {
   dueDate?: string;
   note?: string;
 }
+
+// ---- 创作者分析 ----
+
+export interface CreatorPoint {
+  periodStart: string;
+  activeCreators: number;
+  newCreators: number;
+  posts: number;
+  postsPerCreator: number | null;
+}
+
+export interface CreatorSummary {
+  creators: number;
+  newCreators: number;
+  lostCreators: number;
+  returningCreators: number;
+  creatorShare: number | null;
+  posts: number;
+  previousCreators: number;
+  previousPosts: number;
+}
+
+export interface CreatorOverviewReport {
+  from: string;
+  to: string;
+  granularity: Granularity;
+  summary: CreatorSummary;
+  series: CreatorPoint[];
+  periods: number;
+  dataEnd: string;
+  cohorts: RetentionCohort[];
+}
+
+export type CreatorSortKey = "POSTS" | "PV" | "INTERACTION_RATE" | "COMPLETION" | "NEW_FOLLOWERS";
+
+export interface CreatorRow {
+  employeeId: number;
+  name: string;
+  dept: string | null;
+  posts: number;
+  pv: number;
+  uv: number;
+  interactions: number;
+  interactionRate: number | null;
+  completionRate: number | null;
+  newFollowers: number;
+}
+
+export interface CreatorRankingReport {
+  from: string;
+  to: string;
+  sort: CreatorSortKey;
+  total: number;
+  limit: number;
+  offset: number;
+  creators: CreatorRow[];
+  depts: string[];
+}
+
+export type CreatorStageKey = "INACTIVE" | "READER" | "INTERACTOR" | "CREATOR" | "ACTIVE_CREATOR" | "KOL";
+
+export interface CreatorLadderStage {
+  stage: CreatorStageKey;
+  label: string;
+  count: number;
+  share: number | null;
+}
+
+export interface CreatorLadderReach {
+  step: "VIEW" | "INTERACT" | "POST";
+  label: string;
+  reached: number;
+  share: number | null;
+  medianDays: number | null;
+}
+
+export interface CreatorLadderReport {
+  asOf: string;
+  members: number;
+  kolDate: string | null;
+  stages: CreatorLadderStage[];
+  reach: CreatorLadderReach[];
+}
+
+export interface CreatorConcentrationShare {
+  label: string;
+  creators: number;
+  pvShare: number | null;
+  postShare: number | null;
+}
+
+export interface CreatorAccountType {
+  type: "PERSONAL" | "TEAM";
+  label: string;
+  creators: number;
+  posts: number;
+  pv: number;
+  interactions: number;
+  interactionRate: number | null;
+}
+
+export interface CreatorConcentrationReport {
+  from: string;
+  to: string;
+  creators: number;
+  gini: number | null;
+  shares: CreatorConcentrationShare[];
+  accountTypes: CreatorAccountType[];
+}
+
+// ---- 站内用户分析 ----
+
+export type UserLifecycleStageKey = "NEW" | "ACTIVE" | "RETURNING" | "LAPSING" | "CHURNED" | "DORMANT";
+
+export interface UserLifecycleStageRow {
+  stage: UserLifecycleStageKey;
+  label: string;
+  count: number;
+  share: number | null;
+  previousCount: number;
+}
+
+export interface UserTransitionCell {
+  stage: UserLifecycleStageKey;
+  label: string;
+  count: number;
+}
+
+/** from 为 null 表示"此前还不是成员"。 */
+export interface UserTransitionRow {
+  from: UserLifecycleStageKey | null;
+  fromLabel: string;
+  total: number;
+  to: UserTransitionCell[];
+}
+
+export interface UserLifecycleReport {
+  asOf: string;
+  previousAsOf: string;
+  members: number;
+  previousMembers: number;
+  stages: UserLifecycleStageRow[];
+  transitions: UserTransitionRow[];
+}
+
+export type UserValueSegmentKey = "CORE" | "ACTIVE" | "TO_WAKE" | "LOW_ACTIVE" | "SLEEPING";
+
+export interface UserValueSegmentRow {
+  segment: UserValueSegmentKey;
+  label: string;
+  count: number;
+  share: number | null;
+  avgEngagement: number | null;
+  avgActiveDays: number | null;
+}
+
+export interface UserValueReport {
+  asOf: string;
+  members: number;
+  segments: UserValueSegmentRow[];
+}
+
+export interface UserDomainShare {
+  domain: string;
+  views: number;
+  share: number;
+}
+
+export interface UserDeptInterest {
+  dept: string;
+  members: number;
+  readers: number;
+  views: number;
+  ownShare: number | null;
+  topOthers: UserDomainShare[];
+}
+
+export interface UserInterestReport {
+  asOf: string;
+  days: number;
+  depts: UserDeptInterest[];
+}
+
+export type UserListSort = "LAST_ACTIVE" | "VIEWS" | "INTERACTIONS" | "POSTS" | "ACTIVE_DAYS";
+
+export interface UserListRow {
+  employeeId: number;
+  name: string;
+  dept: string | null;
+  joinDate: string | null;
+  stage: UserLifecycleStageKey;
+  stageLabel: string;
+  valueSegment: UserValueSegmentKey;
+  valueLabel: string;
+  lastActive: string | null;
+  activeDays: number;
+  views: number;
+  interactions: number;
+  posts: number;
+}
+
+export interface UserListReport {
+  asOf: string;
+  total: number;
+  limit: number;
+  offset: number;
+  users: UserListRow[];
+  depts: string[];
+}
+
+export interface UserWeekActivity {
+  weekStart: string;
+  logins: number;
+  views: number;
+  interactions: number;
+  posts: number;
+}
+
+export interface UserShare {
+  label: string;
+  count: number;
+  share: number;
+}
+
+export interface UserFollowedAccount {
+  accountId: number;
+  accountName: string;
+  followTime: string;
+  unfollowTime: string | null;
+}
+
+export interface UserEvent {
+  time: string;
+  type: string;
+  refId: number | null;
+}
+
+export interface UserProfile {
+  asOf: string;
+  basic: {
+    employeeId: number;
+    name: string;
+    dept: string | null;
+    joinDate: string | null;
+    daysInCommunity: number | null;
+    stage: UserLifecycleStageKey | null;
+    stageLabel: string | null;
+    previousStage: UserLifecycleStageKey | null;
+    previousStageLabel: string | null;
+    valueSegment: UserValueSegmentKey | null;
+    valueLabel: string | null;
+    creatorStage: CreatorStageKey;
+    creatorStageLabel: string;
+  };
+  recent: {
+    activeDays: number;
+    lastActive: string | null;
+    views: number;
+    interactions: number;
+    posts: number;
+    role: ReaderRoleKey;
+    roleLabel: string;
+  };
+  timeline: UserWeekActivity[];
+  reading: {
+    views: number;
+    channels: UserShare[];
+    tags: UserShare[];
+    sources: UserShare[];
+    videoShare: number | null;
+    avgDwellSeconds: number | null;
+    completionRate: number | null;
+  };
+  follows: UserFollowedAccount[];
+  points: { active: number; passive: number; total: number };
+  recentEvents: UserEvent[];
+  hasPosts: boolean;
+  kol: { asOf: string; rank: number; segment: string; segmentName: string } | null;
+}
