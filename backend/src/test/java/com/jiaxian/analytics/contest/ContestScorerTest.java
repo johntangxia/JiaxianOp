@@ -33,6 +33,14 @@ class ContestScorerTest {
     }
 
     @Test
+    void channelsWithoutDataScoreZeroInsteadOfSharingTheBottomTie() {
+        // 两个频道没有数据：它们不能因为并列而各得一部分分数；有数据的按榜内百分位（0 值算最低）
+        double[] scores = ContestScorer.percentiles(new double[] {0, 0, 3, 5});
+
+        assertThat(scores).containsExactly(new double[] {0, 0, 200.0 / 3, 100}, within(1e-9));
+    }
+
+    @Test
     void anAllZeroMetricGivesEveryoneZeroInsteadOfFifty() {
         assertThat(ContestScorer.percentiles(new double[] {0, 0, 0})).containsExactly(0, 0, 0);
     }

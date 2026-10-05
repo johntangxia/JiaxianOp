@@ -116,14 +116,14 @@ public class ContestService {
                                       boolean previousHasData) {
         List<DimensionDef> dimensions = composite ? COMPOSITE_DIMENSIONS : DOMAIN_DIMENSIONS;
         List<ChannelSnapshot> members = inLeague(current, composite);
-        List<ScoredChannel> scored = ContestScorer.score(candidates(members, composite), dimensions);
+        List<ScoredChannel> scored = displayed(ContestScorer.score(candidates(members, composite), dimensions));
         Map<Long, Integer> ranks = ContestScorer.ranks(scored);
 
         Map<Long, ScoredChannel> previousScored = new HashMap<>();
         Map<Long, Integer> previousRanks = new HashMap<>();
         if (previousHasData) {
             List<ScoredChannel> scoredPrevious =
-                ContestScorer.score(candidates(inLeague(previous, composite), composite), dimensions);
+                displayed(ContestScorer.score(candidates(inLeague(previous, composite), composite), dimensions));
             scoredPrevious.forEach(s -> previousScored.put(s.channelId(), s));
             previousRanks.putAll(ContestScorer.ranks(scoredPrevious));
         }
@@ -145,6 +145,11 @@ public class ContestService {
         }
         entries.sort(Comparator.comparingInt(ContestEntry::rank).thenComparingLong(ContestEntry::channelId));
         return entries;
+    }
+
+    /** 健康分取整到一位小数（页面上显示的就是它），名次按显示的分数排：显示分数相同的频道名次相同。 */
+    private static List<ScoredChannel> displayed(List<ScoredChannel> scored) {
+        return scored.stream().map(s -> new ScoredChannel(s.channelId(), round1(s.total()), s.dimensions())).toList();
     }
 
     private static List<Candidate> candidates(List<ChannelSnapshot> members, boolean composite) {
