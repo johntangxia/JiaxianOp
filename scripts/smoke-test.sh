@@ -27,6 +27,19 @@ expect_json() {
   fi
 }
 
+# 描述 URL：返回的是带 BOM 和表头的 CSV 附件，且至少有一行数据
+expect_csv() {
+  local headers body
+  headers=$(curl -s -m 60 -D - -o /tmp/smoke-export.csv "$2" | tr -d '\r')
+  body=$(cat /tmp/smoke-export.csv)
+  if grep -qi '^content-type: text/csv' <<< "$headers" && grep -qi '^content-disposition: attachment' <<< "$headers" \
+     && [[ $(head -c 3 /tmp/smoke-export.csv | xxd -p) == efbbbf ]] && [[ $(wc -l < /tmp/smoke-export.csv) -ge 2 ]]; then
+    ok "$1"
+  else
+    bad "$1（$2 不是带 BOM 的 CSV 附件，或者没有数据行）"
+  fi
+}
+
 # URL "python 表达式" → 打印表达式的值，供后面拼 URL 用
 json_value() { curl -fs -m 30 "$1" | python3 -c "import json, sys; d = json.load(sys.stdin); print($2)"; }
 
@@ -173,6 +186,9 @@ if [[ -n $SMOKE_USER ]]; then
 else
   bad "用户 360"
 fi
+expect_csv "导出用户列表 CSV" "$WEB_URL/api/users/export?stage=ACTIVE&sort=VIEWS"
+expect_csv "导出创作者排行 CSV" "$WEB_URL/api/creators/ranking/export?from=$READER_FROM&to=$READER_TO&sort=POSTS"
+expect_csv "导出沉默读者 CSV" "$WEB_URL/api/readers/lurkers/export?from=$READER_FROM&to=$READER_TO"
 expect_status "不存在的用户返回 404" "$WEB_URL/api/users/-1" 404
 expect_status "创作者排行拒绝非法排序" "$WEB_URL/api/creators/ranking?from=$READER_FROM&to=$READER_TO&sort=NAME" 400
 expect_status "SPA 深层路径 /users/12" "$WEB_URL/users/12" 200
