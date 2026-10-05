@@ -439,3 +439,142 @@ export interface ContestBoards {
   composite: ContestEntry[];
   improvers: ContestEntry[];
 }
+
+// ---- 下钻与对比 ----
+
+export interface ExposureMetrics {
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  avgDwellSeconds: number | null;
+  completionRate: number | null;
+}
+
+export interface FollowerMetrics {
+  followers: number;
+  newFollowers: number;
+  lostFollowers: number;
+}
+
+/** followers 只有账号有。博主按"作为作者"统计，合著内容每位作者都记完整的 PV 和互动。 */
+export interface SubjectMetrics {
+  content: ContentMetrics;
+  supply: SupplyMetrics;
+  exposure: ExposureMetrics;
+  followers: FollowerMetrics | null;
+}
+
+export interface DrillTrendPoint extends TrendPoint {
+  newFollowers: number;
+  lostFollowers: number;
+}
+
+export interface BreakdownRow {
+  id: number;
+  name: string;
+  extra: string | null;
+  current: SubjectMetrics;
+  previous: SubjectMetrics;
+}
+
+export interface ChannelAccounts {
+  channelId: number;
+  channelName: string;
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  accounts: BreakdownRow[];
+}
+
+export interface DrillAccountInfo {
+  id: number;
+  name: string;
+  type: "PERSONAL" | "TEAM";
+}
+
+export interface DrillPerson {
+  id: number;
+  name: string;
+}
+
+export interface DrillBloggerInfo {
+  id: number;
+  name: string;
+  dept: string | null;
+  communityJoinDate: string | null;
+  kolProfile: boolean;
+}
+
+export interface DrillContentInfo {
+  id: number;
+  type: "ARTICLE" | "VIDEO";
+  channelId: number;
+  channelName: string;
+  accountId: number;
+  accountName: string;
+  publishTime: string;
+}
+
+export interface EntryExposure {
+  channelId: number;
+  channelName: string;
+  category: string;
+  impressions: number;
+  clicks: number;
+}
+
+interface DrillRanges {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  granularity: Granularity;
+  current: SubjectMetrics;
+  previous: SubjectMetrics;
+  trend: DrillTrendPoint[];
+  composition: MixSlice[];
+}
+
+export interface AccountOverview extends DrillRanges {
+  account: DrillAccountInfo;
+  authors: BreakdownRow[];
+  channels: BreakdownRow[];
+  topContents: TopContent[];
+}
+
+export interface BloggerOverview extends DrillRanges {
+  blogger: DrillBloggerInfo;
+  accounts: BreakdownRow[];
+  channels: BreakdownRow[];
+  topContents: TopContent[];
+}
+
+export interface ContentOverview extends DrillRanges {
+  content: DrillContentInfo;
+  authors: DrillPerson[];
+  tags: string[];
+  entries: EntryExposure[];
+}
+
+export type CompareType = "CHANNEL" | "ACCOUNT" | "BLOGGER";
+
+export interface CompareSubject {
+  id: number;
+  name: string;
+  extra: string | null;
+  current: SubjectMetrics;
+  previous: SubjectMetrics;
+  ownEntry: DistributionMetrics | null;
+  trend: DrillTrendPoint[];
+}
+
+export interface Comparison {
+  type: CompareType;
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  granularity: Granularity;
+  subjects: CompareSubject[];
+}
