@@ -135,17 +135,8 @@ public class ChannelCockpitService {
     }
 
     private static ContentMetrics content(long channelId, PeriodData data) {
-        long interactions = data.interactions().getOrDefault(channelId, 0L);
-        ContentSide side = data.contentSide().get(channelId);
-        if (side == null || side.pv() == 0) {
-            return new ContentMetrics(0, 0, interactions, null, null, null, SourceMix.EMPTY, null, null);
-        }
-        double pv = side.pv();
-        List<Long> perContent = data.contentPv().getOrDefault(channelId, List.of());
-        long top3 = perContent.stream().limit(3).mapToLong(Long::longValue).sum();
-        return new ContentMetrics(side.pv(), side.uv(), interactions, interactions / pv,
-            perContent.isEmpty() ? null : perContent.get(0) / pv, perContent.isEmpty() ? null : top3 / pv,
-            side.mix(), side.mix().ownEntry() / pv, side.mix().compositeEntry() / pv);
+        return ContentMetricsFactory.build(data.contentSide().get(channelId),
+            data.interactions().getOrDefault(channelId, 0L), data.contentPv().getOrDefault(channelId, List.of()));
     }
 
     private static CompositeCoverage coverage(Map<Long, Long> clicksByDomain) {
