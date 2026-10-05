@@ -220,6 +220,8 @@
 
 > 实现时的取舍（见 [竞赛榜设计](2026-10-05-channel-contest-design.md)）：新增"频道竞赛榜"（`/contest`）：领域榜（23 个）和综合榜（5 个）分开计分，健康分 = 各维度在榜内的百分位得分按权重加总（没有数据得 0 分），周榜/月榜、名次变化、进步榜；实时计算，不做快照和权重配置。
 
+> 实现时的取舍（见 [下钻与对比设计](2026-10-05-drilldown-compare-design.md)）：频道 → 账号 → 博主 → 内容逐级下钻（`/channels/:id`、`/accounts/:id`、`/bloggers/:id`、`/contents/:id`，带面包屑），以及 2–5 个同类对象的对比页（`/compare`）；内容侧指标口径与频道驾驶舱共用，博主按作者归属、合著内容重复计数；账号额外有关注者、新增和取关。
+
 ## 9. 部署与测试
 
 **部署**：本地/演示环境用 `docker-compose` 一键拉起 OpenGauss + Redis + Kafka + Spring Boot + Vue（Nginx托管前端静态资源）；配置通过 `application.yml`+环境变量管理，不硬编码。该 compose 文件本身也作为正式团队的最小可运行参考环境。

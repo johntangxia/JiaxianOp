@@ -6,6 +6,7 @@
 
 - **PV 多维分析**：按频道、账号、博主、内容类型切片，日/周/月/年粒度，环比、同比和简单趋势预测（移动平均 + 漂移，带置信区间）。
 - **频道驾驶舱**：综合频道（关注、推荐、热点、视频、直播）和领域频道（23 个）用同一套"自己入口的分发"口径（曝光、点击、点击率、UV、停留），领域频道的**自主分发**单列并突出显示，带来源构成（自主入口/综合入口/搜索/分享/其他）、环比、互动率、供给、头部集中度，以及基于同类中位数的自动诊断；点进频道看趋势、构成和 Top 内容。
+- **下钻与对比**：从频道一路下钻到账号、博主（作者视角）、单篇内容，每一级都有 KPI、来源趋势和构成、下一级明细；对比页把 2–5 个同类对象（领域频道、账号、博主）并排对照，标出每项指标的最优者。
 - **频道竞赛榜**：领域榜（23 个领域频道）和综合榜（5 个综合入口）分开排名，健康分由自主分发、流量、互动、触达用户、内容供给（综合榜是点击率、曝光、点击、触达用户、领域覆盖）在榜内的百分位得分加权得出，周榜/月榜，带名次变化和进步榜。
 - **积分排行榜**：员工有"主动行为"和"被动互动"两类积分（发帖、登录、被浏览、被点赞……），月榜/年榜按**当期**积分排名，已结束的周期有归档快照。
 - **KOL 管理**：对近 12 个月积分前 1000 名做 RFM 打分和分层（明星 KOL、稳定贡献者、成长潜力新人、流失预警、沉寂用户、观察中），流失预警，运营建议文案库，博主详情（RFM 历史轨迹、活跃时间轴、积分构成）。
@@ -86,6 +87,7 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 
 1. 打开 http://localhost:8090/admin/simulator，点"清空并回填"（或运行 `scripts/seed-demo.sh`），再点"一键重算全部"。
 2. **总览看板**：切换日/周/月/年，用频道/账号/博主/内容类型筛选；趋势图的虚线和浅色带是预测和置信区间。
+   **下钻与对比**：在频道详情里点一个账号 → 点作者 → 点内容，面包屑可以退回；侧边栏"对比分析"选 2–5 个同类对象并排看。
    **频道竞赛榜**：切换周榜/月榜和周期，看领域榜和综合榜的前三名、各维度得分条、名次升降和进步榜。
    **频道驾驶舱**：看综合频道入口分发和领域频道自主入口分发的对比、各频道的来源构成和诊断标签（鼠标悬停看原因），点一行进入频道详情。
 3. **积分排行榜**：切换月榜/年榜和周期，看主动/被动积分构成。
@@ -129,3 +131,4 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 | 行为数据扩充：来源、曝光、关注、搜索、标签 | [behavior-data](docs/superpowers/specs/2026-10-05-behavior-data-design.md) | [behavior-data](docs/superpowers/plans/2026-10-05-behavior-data.md) |
 | 频道运营驾驶舱 | [channel-cockpit](docs/superpowers/specs/2026-10-05-channel-cockpit-design.md) | [channel-cockpit](docs/superpowers/plans/2026-10-05-channel-cockpit.md) |
 | 频道竞赛榜 | [channel-contest](docs/superpowers/specs/2026-10-05-channel-contest-design.md) | [channel-contest](docs/superpowers/plans/2026-10-05-channel-contest.md) |
+| 下钻与对比 | [drilldown-compare](docs/superpowers/specs/2026-10-05-drilldown-compare-design.md) | [drilldown-compare](docs/superpowers/plans/2026-10-05-drilldown-compare.md) |

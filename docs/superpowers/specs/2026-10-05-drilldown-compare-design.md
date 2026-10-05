@@ -1,7 +1,7 @@
 # 下钻与对比 · 设计方案
 
 - 日期：2026-10-05
-- 状态：待实施（实施计划见 [下钻与对比](../plans/2026-10-05-drilldown-compare.md)）
+- 状态：已实现（实施计划见 [下钻与对比](../plans/2026-10-05-drilldown-compare.md)）
 - 前置依赖：[频道运营驾驶舱](2026-10-05-channel-cockpit-design.md)（频道指标、详情页）和[行为数据扩充](2026-10-05-behavior-data-design.md)（来源、曝光、停留、关注）已实现。
 
 ## 1. 目标
@@ -50,6 +50,17 @@
 ## 5. 后端结构
 
 新增 `drill` 包：`SubjectType`（频道/账号/博主/内容各自的分组列和是否需要作者连接）→ `SubjectQueryRepository`（按分组键参数化的聚合查询，支持按频道/账号/作者/对象 id 过滤）→ `DrillService`（装配指标、趋势、构成、Top 内容、对比）→ `DrillController`（+ 异常处理）。内容侧指标的计算抽成 `ContentMetricsFactory`，驾驶舱和下钻共用。
+
+## 5.1 实现时的偏差
+
+- 前端类型叫 `DrillAccountInfo`、`DrillPerson`、`DrillBloggerInfo`、`DrillContentInfo`，避免和已有的 `AccountOption`、`EmployeeOption` 一类同名接口混淆（上一个计划里 `PeriodOption` 同名被 TypeScript 合并过一次）。
+- `BaseChart` 新增 `chartClick` 事件，综合频道详情里"点击内容所属领域"的饼图据此可点。
+- 对比页的"添加对象"用单选控件加已选标签（远程搜索选择器本身是单选），标签上的名字来自搜索结果或对比接口的返回，从链接直接打开时先显示 `#id` 再换成名字。
+- 对比页的指标对照表里，全部对象的值相同时不标"最优"；PV、UV 额外显示相对上期的变化。
+- 账号、博主页的"所属账号/各频道分布"只列当期有数据的对象；"该频道下的账号"和"作者"列出全部（含当期没有数据的），因为它们是下钻的入口。
+- KOL 详情的入口只在博主已在 KOL 名单里（`blogger_rfm_score` 有记录）时显示。
+- 冒烟测试新增 7 项下钻/对比检查。
+- 已知局限：下钻页没有诊断规则；博主按作者归属，合著内容重复计数，所以账号下各作者的 PV 之和可能大于账号合计（页面上已注明）。
 
 ## 6. 测试
 
