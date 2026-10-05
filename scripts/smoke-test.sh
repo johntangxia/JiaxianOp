@@ -68,6 +68,18 @@ if [[ -n $ID ]]; then
 fi
 expect_status "名单拒绝非法分层" "$WEB_URL/api/bloggers/top1000?segment=VIP" 400
 
+echo "频道驾驶舱"
+COCKPIT_FROM=$(python3 -c "import datetime as d; print(d.date.fromisoformat('$TO') - d.timedelta(days=29))")
+expect_json "驾驶舱（5 综合 + 23 领域，含诊断和基准）" "$WEB_URL/api/channels/cockpit?from=$COCKPIT_FROM&to=$TO" \
+  'len(d["composite"]) == 5 and len(d["domain"]) == 23 and all("diagnoses" in r for r in d["domain"]) and "OWN_ENTRY_SHARE" in d["domainBenchmark"]'
+expect_json "驾驶舱：领域 PV 合计大于 0" "$WEB_URL/api/channels/cockpit?from=$COCKPIT_FROM&to=$TO" \
+  'sum(r["current"]["content"]["pv"] for r in d["domain"]) > 0'
+CHANNEL_ID=$(json_value "$WEB_URL/api/channels/cockpit?from=$COCKPIT_FROM&to=$TO" 'max(d["domain"], key=lambda r: r["current"]["content"]["pv"])["id"]')
+expect_json "频道详情（趋势、构成、Top 内容）" "$WEB_URL/api/channels/$CHANNEL_ID/detail?from=$COCKPIT_FROM&to=$TO&granularity=WEEK" \
+  'len(d["trend"]) > 0 and len(d["composition"]) == 5 and len(d["topContents"]) > 0'
+expect_status "驾驶舱拒绝颠倒的日期范围" "$WEB_URL/api/channels/cockpit?from=$TO&to=$COCKPIT_FROM" 400
+expect_status "不存在的频道返回 404" "$WEB_URL/api/channels/999999999/detail?from=$COCKPIT_FROM&to=$TO" 404
+
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'

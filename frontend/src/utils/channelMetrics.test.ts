@@ -101,16 +101,20 @@ describe("compareNullable", () => {
 });
 
 describe("defaultCockpitRange", () => {
-  it("covers 30 days ending at the last PV day", () => {
-    expect(defaultCockpitRange({ from: "2025-01-01", to: "2025-09-30" })).toEqual({ from: "2025-09-01", to: "2025-09-30" });
+  it("covers 180 days by default, ending at the last PV day", () => {
+    expect(defaultCockpitRange({ from: "2024-01-01", to: "2025-09-30" })).toEqual({ from: "2025-04-04", to: "2025-09-30" });
+  });
+
+  it("covers the requested number of days ending at the last PV day", () => {
+    expect(defaultCockpitRange({ from: "2025-01-01", to: "2025-09-30" }, 30)).toEqual({ from: "2025-09-01", to: "2025-09-30" });
   });
 
   it("does not start before the first PV day", () => {
-    expect(defaultCockpitRange({ from: "2025-09-20", to: "2025-09-30" })).toEqual({ from: "2025-09-20", to: "2025-09-30" });
+    expect(defaultCockpitRange({ from: "2025-09-20", to: "2025-09-30" }, 30)).toEqual({ from: "2025-09-20", to: "2025-09-30" });
   });
 
   it("crosses month boundaries", () => {
-    expect(defaultCockpitRange({ from: "2025-01-01", to: "2025-03-10" })).toEqual({ from: "2025-02-09", to: "2025-03-10" });
+    expect(defaultCockpitRange({ from: "2025-01-01", to: "2025-03-10" }, 30)).toEqual({ from: "2025-02-09", to: "2025-03-10" });
   });
 
   it("is null without data", () => {

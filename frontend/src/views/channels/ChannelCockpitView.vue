@@ -18,12 +18,13 @@ const initializing = ref(true);
 const initError = ref<string | null>(null);
 const noData = ref(false);
 const range = ref<DateRange | null>(null);
+const pvRange = ref<PvRange | null>(null);
 const cockpit = useAsync((r: DateRange) => fetchCockpit(r.from, r.to));
 
 onMounted(async () => {
   try {
-    const pvRange: PvRange = await fetchPvRange();
-    const initial = defaultCockpitRange(pvRange);
+    pvRange.value = await fetchPvRange();
+    const initial = defaultCockpitRange(pvRange.value);
     if (initial) {
       range.value = initial;
     } else {
@@ -40,6 +41,17 @@ watch(range, (value) => value && void cockpit.run(value), { deep: true });
 
 const picker = computed<[Date, Date] | null>(() =>
   range.value ? [parseIsoDate(range.value.from), parseIsoDate(range.value.to)] : null,
+);
+
+// 快捷项：以 PV 数据最后一天为终点
+const shortcuts = computed(() =>
+  [30, 90, 180, 365].map((days) => ({
+    text: days === 365 ? "近一年" : days === 180 ? "近半年" : `近 ${days} 天`,
+    value: (): [Date, Date] => {
+      const r = defaultCockpitRange(pvRange.value, days);
+      return r ? [parseIsoDate(r.from), parseIsoDate(r.to)] : [new Date(), new Date()];
+    },
+  })),
 );
 
 function onPicker(value: [Date, Date] | null): void {
@@ -69,6 +81,7 @@ const data = computed(() => cockpit.data.value);
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             :clearable="false"
+            :shortcuts="shortcuts"
             @update:model-value="onPicker"
           />
           <span v-if="data" class="muted">环比对比 {{ data.previousFrom }} ~ {{ data.previousTo }}（上一个等长周期）</span>

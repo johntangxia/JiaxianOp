@@ -9,6 +9,7 @@ import { buildChannelTrendOption } from "../../charts/channelTrendOption";
 import { buildMixPieOption } from "../../charts/mixPieOption";
 import { useAsync } from "../../composables/useAsync";
 import { formatPercent, formatSeconds, severityTagType } from "../../utils/channelMetrics";
+import { parseIsoDate } from "../../utils/dateRange";
 import { formatNumber } from "../../utils/format";
 import DeltaText from "./DeltaText.vue";
 
@@ -20,7 +21,9 @@ const from = computed(() => String(route.query.from ?? ""));
 const to = computed(() => String(route.query.to ?? ""));
 const valid = computed(() => Number.isInteger(channelId.value) && channelId.value > 0 && !!from.value && !!to.value);
 
-const granularity = ref<Granularity>("DAY");
+// 区间超过 45 天时默认按周看，按天太碎
+const rangeDays = (parseIsoDate(to.value).getTime() - parseIsoDate(from.value).getTime()) / 86_400_000 + 1;
+const granularity = ref<Granularity>(rangeDays > 45 ? "WEEK" : "DAY");
 const granularities: Array<{ value: Granularity; label: string }> = [
   { value: "DAY", label: "日" },
   { value: "WEEK", label: "周" },
@@ -149,7 +152,7 @@ function back(): void {
 }
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
 }
 .kpi.own {
@@ -179,7 +182,7 @@ function back(): void {
 }
 .grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 16px;
 }
 </style>

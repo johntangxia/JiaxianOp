@@ -105,8 +105,13 @@ export function compareNullable(a: number | null | undefined, b: number | null |
   return x === y ? 0 : x < y ? -1 : 1;
 }
 
-/** 驾驶舱默认区间：PV 数据最后一天往前共 days 天（含最后一天），起点不早于数据第一天；没有数据时返回 null。 */
-export function defaultCockpitRange(pvRange: PvRange | null, days = 30): DateRange | null {
+export const DEFAULT_COCKPIT_DAYS = 180;
+
+/**
+ * 驾驶舱默认区间：PV 数据最后一天往前共 days 天（含最后一天），起点不早于数据第一天；没有数据时返回 null。
+ * 默认取近半年：领域频道有 23 个，区间太短时很多频道没有足够的数据量，诊断规则不会下结论。
+ */
+export function defaultCockpitRange(pvRange: PvRange | null, days = DEFAULT_COCKPIT_DAYS): DateRange | null {
   if (!pvRange?.from || !pvRange.to) {
     return null;
   }

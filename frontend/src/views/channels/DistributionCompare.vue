@@ -50,7 +50,7 @@ const ownShare = computed(() => (mix.value.total === 0 ? null : mix.value.ownEnt
 
     <div class="panel group">
       <h3 class="panel-title">领域内容的来源构成</h3>
-      <BaseChart :option="option" height="160px" />
+      <BaseChart :option="option" height="180px" />
     </div>
   </div>
 </template>
@@ -58,7 +58,7 @@ const ownShare = computed(() => (mix.value.total === 0 ? null : mix.value.ownEnt
 <style scoped>
 .compare {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.2fr;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
 }
 .group.own {
