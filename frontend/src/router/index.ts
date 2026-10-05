@@ -5,6 +5,18 @@ export default createRouter({
   routes: [
     { path: "/", name: "overview", component: () => import("../views/OverviewView.vue"), meta: { title: "总览看板" } },
     {
+      path: "/channels",
+      name: "channels",
+      component: () => import("../views/channels/ChannelCockpitView.vue"),
+      meta: { title: "频道驾驶舱" },
+    },
+    {
+      path: "/channels/:id",
+      name: "channel-detail",
+      component: () => import("../views/channels/ChannelDetailView.vue"),
+      meta: { title: "频道详情" },
+    },
+    {
       path: "/leaderboard",
       name: "leaderboard",
       component: () => import("../views/LeaderboardView.vue"),

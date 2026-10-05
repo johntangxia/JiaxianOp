@@ -5,8 +5,12 @@ import { useRoute } from "vue-router";
 import HealthBadge from "./components/HealthBadge.vue";
 
 const route = useRoute();
-// 详情页高亮"KOL 管理"
-const activeMenu = computed(() => (route.path.startsWith("/kol") ? "/kol" : route.path));
+// 详情页高亮对应的一级菜单
+const activeMenu = computed(() => {
+  if (route.path.startsWith("/kol")) return "/kol";
+  if (route.path.startsWith("/channels")) return "/channels";
+  return route.path;
+});
 </script>
 
 <template>
@@ -16,6 +20,7 @@ const activeMenu = computed(() => (route.path.startsWith("/kol") ? "/kol" : rout
         <div class="brand">稼先社区<br /><small>运营分析看板</small></div>
         <el-menu :default-active="activeMenu" :default-openeds="['admin']" router class="app-menu">
           <el-menu-item index="/">总览看板</el-menu-item>
+          <el-menu-item index="/channels">频道驾驶舱</el-menu-item>
           <el-menu-item index="/leaderboard">积分排行榜</el-menu-item>
           <el-menu-item index="/kol">KOL 管理</el-menu-item>
           <el-sub-menu index="admin">
