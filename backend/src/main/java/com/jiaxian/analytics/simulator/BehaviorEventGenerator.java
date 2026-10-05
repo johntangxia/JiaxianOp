@@ -16,8 +16,13 @@ public class BehaviorEventGenerator {
     private final PointsWeightConfigRepository pointsWeightConfigRepository;
     private final PointsLedgerRepository pointsLedgerRepository;
     private final CommentRepository commentRepository;
+    private final ImpressionRepository impressionRepository;
+    private final FollowRelationRepository followRelationRepository;
+    private final SearchLogRepository searchLogRepository;
+    private final ContentTagRepository contentTagRepository;
     private final Random random;
 
+    /** 只关心积分和明细的调用方（不记录曝光、关注、搜索、标签）；用到那些方法会抛 NullPointerException。 */
     public BehaviorEventGenerator(PvLogRepository pvLogRepository,
                                    EngagementLogRepository engagementLogRepository,
                                    ActiveActionLogRepository activeActionLogRepository,
@@ -26,6 +31,23 @@ public class BehaviorEventGenerator {
                                    PointsLedgerRepository pointsLedgerRepository,
                                    CommentRepository commentRepository,
                                    Random random) {
+        this(pvLogRepository, engagementLogRepository, activeActionLogRepository, contentAuthorRepository,
+            pointsWeightConfigRepository, pointsLedgerRepository, commentRepository,
+            null, null, null, null, random);
+    }
+
+    public BehaviorEventGenerator(PvLogRepository pvLogRepository,
+                                   EngagementLogRepository engagementLogRepository,
+                                   ActiveActionLogRepository activeActionLogRepository,
+                                   ContentAuthorRepository contentAuthorRepository,
+                                   PointsWeightConfigRepository pointsWeightConfigRepository,
+                                   PointsLedgerRepository pointsLedgerRepository,
+                                   CommentRepository commentRepository,
+                                   ImpressionRepository impressionRepository,
+                                   FollowRelationRepository followRelationRepository,
+                                   SearchLogRepository searchLogRepository,
+                                   ContentTagRepository contentTagRepository,
+                                   Random random) {
         this.pvLogRepository = pvLogRepository;
         this.engagementLogRepository = engagementLogRepository;
         this.activeActionLogRepository = activeActionLogRepository;
@@ -33,6 +55,10 @@ public class BehaviorEventGenerator {
         this.pointsWeightConfigRepository = pointsWeightConfigRepository;
         this.pointsLedgerRepository = pointsLedgerRepository;
         this.commentRepository = commentRepository;
+        this.impressionRepository = impressionRepository;
+        this.followRelationRepository = followRelationRepository;
+        this.searchLogRepository = searchLogRepository;
+        this.contentTagRepository = contentTagRepository;
         this.random = random;
     }
 
@@ -41,12 +67,52 @@ public class BehaviorEventGenerator {
     }
 
     public void generateView(Long contentId, Long viewerId, LocalDateTime occurTime, String batchId) {
+        generateView(contentId, viewerId, occurTime, batchId, ViewDetail.NONE);
+    }
+
+    /** 记录一次浏览；来源是入口时，同时记一条"已点击"的曝光（点击率的分子）。 */
+    public void generateView(Long contentId, Long viewerId, LocalDateTime occurTime, String batchId,
+                             ViewDetail detail) {
         pvLogRepository.save(PvLog.builder()
             .contentId(contentId).viewerEmployeeId(viewerId).viewTime(occurTime)
+            .entryChannelId(detail.entryChannelId()).sourceType(detail.source())
+            .dwellSeconds(detail.dwellSeconds()).completed(detail.completed())
             .simulationBatchId(batchId).build());
+        if (detail.source() == ViewSource.ENTRY && detail.entryChannelId() != null) {
+            generateImpression(contentId, viewerId, detail.entryChannelId(), occurTime, true, batchId);
+        }
 
         recordActive(viewerId, ActiveActionType.VIEW, "VIEW", contentId, occurTime, batchId);
         creditContentAuthorsPassive(contentId, "CONTENT_VIEWED", occurTime, batchId);
+    }
+
+    public void generateImpression(Long contentId, Long viewerId, Long entryChannelId, LocalDateTime occurTime,
+                                   boolean clicked, String batchId) {
+        impressionRepository.save(Impression.builder()
+            .contentId(contentId).viewerEmployeeId(viewerId).entryChannelId(entryChannelId)
+            .impressionTime(occurTime).clicked(clicked).simulationBatchId(batchId).build());
+    }
+
+    /** 关注关系只记录，不计分。 */
+    public void generateFollow(Long followerId, Long accountId, LocalDateTime followTime,
+                               LocalDateTime unfollowTime, String batchId) {
+        followRelationRepository.save(FollowRelation.builder()
+            .followerEmployeeId(followerId).accountId(accountId).followTime(followTime)
+            .unfollowTime(unfollowTime).simulationBatchId(batchId).build());
+    }
+
+    public void generateSearch(Long employeeId, String keyword, LocalDateTime occurTime, Long clickedContentId,
+                               String batchId) {
+        searchLogRepository.save(SearchLog.builder()
+            .employeeId(employeeId).keyword(keyword).searchTime(occurTime)
+            .clickedContentId(clickedContentId).simulationBatchId(batchId).build());
+    }
+
+    public void generateTags(Long contentId, List<String> tags, String batchId) {
+        for (String tag : tags) {
+            contentTagRepository.save(ContentTag.builder()
+                .contentId(contentId).tag(tag).simulationBatchId(batchId).build());
+        }
     }
 
     public void generateLike(Long contentId, Long actorId, LocalDateTime occurTime, String batchId) {

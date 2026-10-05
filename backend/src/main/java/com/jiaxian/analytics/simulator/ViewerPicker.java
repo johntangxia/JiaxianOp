@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * 在某个时刻挑一个浏览者/互动者：权重 = 活跃倾向 × 当天的活跃概率（加入社区之前为 0），
@@ -31,18 +33,28 @@ public final class ViewerPicker {
                                           Random random) {
         boolean sameDomain = preferredDept != null && random.nextDouble() < SAME_DOMAIN_RATIO;
         if (sameDomain) {
-            Optional<EmployeeProfile> inDomain = draw(preferredDept, interactorsOnly, time, random);
+            Optional<EmployeeProfile> inDomain = drawInDept(preferredDept, interactorsOnly, time, random);
             if (inDomain.isPresent()) {
                 return inDomain;
             }
         }
-        return draw(null, interactorsOnly, time, random);
+        return drawInDept(null, interactorsOnly, time, random);
     }
 
-    private Optional<EmployeeProfile> draw(String dept, boolean interactorsOnly, LocalDateTime time, Random random) {
+    /** 只在给定的员工 id 里挑（例如某个账号当时的关注者）；权重规则同 {@link #pick}。 */
+    public Optional<EmployeeProfile> pickAmong(Set<Long> employeeIds, LocalDateTime time, Random random) {
+        return draw(p -> employeeIds.contains(p.employee().getId()), false, time, random);
+    }
+
+    private Optional<EmployeeProfile> drawInDept(String dept, boolean interactorsOnly, LocalDateTime time, Random random) {
+        return draw(p -> dept == null || dept.equals(p.employee().getDept()), interactorsOnly, time, random);
+    }
+
+    private Optional<EmployeeProfile> draw(Predicate<EmployeeProfile> candidate, boolean interactorsOnly,
+                                           LocalDateTime time, Random random) {
         double total = 0;
         for (EmployeeProfile profile : profiles) {
-            total += weight(profile, dept, interactorsOnly, time);
+            total += weight(profile, candidate, interactorsOnly, time);
         }
         if (total <= 0) {
             return Optional.empty();
@@ -51,7 +63,7 @@ public final class ViewerPicker {
         double cumulative = 0;
         EmployeeProfile last = null;
         for (EmployeeProfile profile : profiles) {
-            double weight = weight(profile, dept, interactorsOnly, time);
+            double weight = weight(profile, candidate, interactorsOnly, time);
             if (weight <= 0) {
                 continue;
             }
@@ -64,11 +76,12 @@ public final class ViewerPicker {
         return Optional.ofNullable(last);
     }
 
-    private double weight(EmployeeProfile profile, String dept, boolean interactorsOnly, LocalDateTime time) {
+    private double weight(EmployeeProfile profile, Predicate<EmployeeProfile> candidate, boolean interactorsOnly,
+                          LocalDateTime time) {
         if (interactorsOnly && profile.lurker()) {
             return 0;
         }
-        if (dept != null && !dept.equals(profile.employee().getDept())) {
+        if (!candidate.test(profile)) {
             return 0;
         }
         return profile.propensity() * model.dailyActivity(profile, time.toLocalDate());

@@ -6,7 +6,11 @@ import com.jiaxian.analytics.repository.ContentAuthorRepository;
 import com.jiaxian.analytics.repository.EngagementLogRepository;
 import com.jiaxian.analytics.repository.PointsLedgerRepository;
 import com.jiaxian.analytics.repository.PointsWeightConfigRepository;
+import com.jiaxian.analytics.repository.ContentTagRepository;
+import com.jiaxian.analytics.repository.FollowRelationRepository;
+import com.jiaxian.analytics.repository.ImpressionRepository;
 import com.jiaxian.analytics.repository.PvLogRepository;
+import com.jiaxian.analytics.repository.SearchLogRepository;
 import com.jiaxian.analytics.simulator.BehaviorEventGenerator;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.context.annotation.Bean;
@@ -33,10 +37,15 @@ public class RealtimeConfig {
                                                          ContentAuthorRepository contentAuthorRepository,
                                                          PointsWeightConfigRepository pointsWeightConfigRepository,
                                                          PointsLedgerRepository pointsLedgerRepository,
-                                                         CommentRepository commentRepository) {
+                                                         CommentRepository commentRepository,
+                                                         ImpressionRepository impressionRepository,
+                                                         FollowRelationRepository followRelationRepository,
+                                                         SearchLogRepository searchLogRepository,
+                                                         ContentTagRepository contentTagRepository) {
         return new BehaviorEventGenerator(
             pvLogRepository, engagementLogRepository, activeActionLogRepository,
             contentAuthorRepository, pointsWeightConfigRepository, pointsLedgerRepository,
-            commentRepository, new Random());
+            commentRepository, impressionRepository, followRelationRepository, searchLogRepository,
+            contentTagRepository, new Random());
     }
 }
