@@ -26,7 +26,7 @@ class DimensionControllerIT {
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody().isArray()).isTrue();
-        assertThat(response.getBody().size()).isGreaterThanOrEqualTo(15);
+        assertThat(response.getBody().size()).isGreaterThanOrEqualTo(28);
         JsonNode first = response.getBody().get(0);
         assertThat(first.has("id")).isTrue();
         assertThat(first.has("name")).isTrue();

@@ -71,7 +71,8 @@ expect_status "名单拒绝非法分层" "$WEB_URL/api/bloggers/top1000?segment=
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'
-expect_json "频道列表" "$WEB_URL/api/dimensions/channels" 'len(d) >= 15'
+expect_json "频道列表（5 综合 + 23 领域）" "$WEB_URL/api/dimensions/channels" \
+  'sum(1 for c in d if c["category"] == "综合频道") == 5 and sum(1 for c in d if c["category"] == "领域频道") == 23'
 expect_json "员工搜索" "$WEB_URL/api/dimensions/employees?limit=5" 'len(d) > 0'
 expect_json "实时模拟状态" "$WEB_URL/api/admin/simulator/realtime/status" '"running" in d'
 

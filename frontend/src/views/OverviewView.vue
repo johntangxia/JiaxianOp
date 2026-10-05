@@ -4,6 +4,7 @@ import { fetchChannels, fetchPvRange, fetchTrend } from "../api/analytics";
 import type { ChannelOption, PvRange } from "../api/types";
 import AsyncBlock from "../components/AsyncBlock.vue";
 import { useAsync } from "../composables/useAsync";
+import { domainChannels } from "../utils/channels";
 import { defaultRange } from "../utils/dateRange";
 import { deriveKpis } from "../utils/kpi";
 import KpiCards from "./overview/KpiCards.vue";
@@ -32,7 +33,7 @@ const trend = useAsync((q: OverviewQuery) =>
 onMounted(async () => {
   try {
     const [range, channelList] = await Promise.all([fetchPvRange(), fetchChannels()]);
-    channels.value = channelList;
+    channels.value = domainChannels(channelList);
     if (!range.from || !range.to) {
       noData.value = true;
     } else {

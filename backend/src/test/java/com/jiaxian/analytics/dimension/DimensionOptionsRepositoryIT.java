@@ -54,7 +54,7 @@ class DimensionOptionsRepositoryIT {
             new ChannelOption(a.getId(), "维度测试频道甲", "测试类"),
             new ChannelOption(b.getId(), "维度测试频道乙", "测试类"));
         assertThat(channels).extracting(ChannelOption::id).isSorted();
-        assertThat(channels.size()).isGreaterThanOrEqualTo(15);   // 15 个种子频道
+        assertThat(channels.size()).isGreaterThanOrEqualTo(28);   // 5 个综合频道 + 23 个领域频道
     }
 
     @Test
