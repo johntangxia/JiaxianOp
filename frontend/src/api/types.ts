@@ -578,3 +578,95 @@ export interface Comparison {
   granularity: Granularity;
   subjects: CompareSubject[];
 }
+
+// ---- 读者侧分析 ----
+
+export interface ReaderActivityPoint {
+  periodStart: string;
+  activeUsers: number;
+  newMembers: number;
+  members: number;
+  activeRate: number | null;
+}
+
+export interface ReaderActivitySummary {
+  dau: number;
+  wau: number;
+  mau: number;
+  stickiness: number | null;
+  members: number;
+}
+
+export interface ReaderActivityReport {
+  from: string;
+  to: string;
+  granularity: Granularity;
+  summary: ReaderActivitySummary;
+  points: ReaderActivityPoint[];
+}
+
+/** retention 第 k 项是加入后第 k 个周期的留存率，数据还没覆盖的周期为 null。 */
+export interface RetentionCohort {
+  cohortStart: string;
+  size: number;
+  retention: Array<number | null>;
+}
+
+export interface RetentionReport {
+  from: string;
+  to: string;
+  granularity: Granularity;
+  periods: number;
+  dataEnd: string;
+  cohorts: RetentionCohort[];
+}
+
+export interface ReaderFunnelStep {
+  key: "JOINED" | "VIEWED" | "INTERACTED" | "POSTED" | "RETAINED";
+  label: string;
+  count: number;
+  rateOfJoined: number | null;
+}
+
+export interface ReaderFunnel {
+  from: string;
+  to: string;
+  joined: number;
+  steps: ReaderFunnelStep[];
+}
+
+export type ReaderRoleKey = "CREATOR" | "INTERACTOR" | "LURKER" | "LOGIN_ONLY" | "INACTIVE";
+
+export interface ReaderSegmentCount {
+  role: ReaderRoleKey;
+  label: string;
+  count: number;
+  share: number | null;
+}
+
+export interface ReaderSegments {
+  from: string;
+  to: string;
+  members: number;
+  segments: ReaderSegmentCount[];
+}
+
+export interface ReaderLurker {
+  employeeId: number;
+  name: string;
+  dept: string | null;
+  joinDate: string | null;
+  views: number;
+  activeDays: number;
+  lastActive: string | null;
+}
+
+export interface ReaderLurkerPage {
+  from: string;
+  to: string;
+  total: number;
+  limit: number;
+  offset: number;
+  lurkers: ReaderLurker[];
+  depts: string[];
+}
