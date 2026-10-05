@@ -20,4 +20,8 @@ public class Channel {
 
     private String name;
     private String category;
+
+    public static boolean isCompositeCategory(String category) {
+        return CATEGORY_COMPOSITE.equals(category);
+    }
 }
