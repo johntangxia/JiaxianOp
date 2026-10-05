@@ -78,6 +78,7 @@ cd frontend && npm install && VITE_API_TARGET=http://localhost:8093 npm run dev 
 docker compose up -d           # 后端的集成测试连真实的 OpenGauss、Redis 和 Kafka
 scripts/test-backend.sh        # 后端：单元测试 + 集成测试（约 15 分钟；先自动建好独立的测试库）
 scripts/test-backend.sh -Dtest=PeopleEndToEndIT   # 额外参数原样传给 mvn
+cd backend && mvn test '-Dtest=!*IT'               # 只跑单元测试：不需要任何基础设施，约半分钟（430 个）
 cd frontend && npm test        # 前端：纯逻辑和图表配置的单元测试
 cd frontend && npm run build   # 前端：类型检查 + 生产构建
 ```
@@ -123,6 +124,10 @@ cd frontend && npm run build   # 前端：类型检查 + 生产构建
 - **Vite 开发服务器第一次打开某个页面时控制台有一条 404**：开发模式下依赖重新优化造成的，刷新即可，生产构建没有。
 - **升级旧库后频道列表里还有"已停用"的频道**：旧种子里的移动无线、固定网络、IT计算被旧内容引用时只会被停用，不会删除；下一次"清空并回填"会一并清掉。总览的频道筛选只列领域频道，不受影响。
 - **KOL 页面全是"沉寂"**：模拟数据是历史的，以"今天"为统计日所有人都不活跃了。用控制台的"一键重算全部"（或重算 KOL 时不填统计日），它会取最近一次登录/发帖的日期作为统计日。
+
+## 持续集成
+
+`.github/workflows/ci.yml`：每次推送到 `main` 和每个 Pull Request 都会跑三个任务——前端（测试 + 类型检查 + 构建）、后端单元测试（半分钟）、后端集成测试（用 `docker compose up --wait` 拉起 OpenGauss、Redis、Kafka，再执行 `scripts/test-backend.sh`，约 15–20 分钟；失败时把 surefire 报告作为构件保留 7 天）。集成测试只在单元测试通过后才跑。
 
 ## 已知限制
 
