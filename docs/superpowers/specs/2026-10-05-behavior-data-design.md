@@ -1,7 +1,7 @@
 # 行为数据扩充（来源、曝光、停留、关注、搜索、标签）· 设计方案
 
 - 日期：2026-10-05
-- 状态：待实施（实施计划见 [行为数据扩充](../plans/2026-10-05-behavior-data.md)）
+- 状态：已实现（实施计划见 [行为数据扩充](../plans/2026-10-05-behavior-data.md)）
 - 前置依赖：[数据基础](2026-10-05-data-foundation-design.md)（5 个综合频道 + 23 个领域频道、加入社区日期、`ActivityModel`/`ViewerPicker`）已实现。
 
 ## 1. 背景与目标
@@ -61,6 +61,16 @@
 - 纯函数：`SourceSampler`（占比、退回规则）、`ViewDetailSampler`（停留范围、读完比例）、`TagCatalog`（标签数、幂律）、`ImpressionPlanner`（期望曝光数）。
 - 集成：`SchemaUpgraderIT`（旧库补列）；`HistoricalBackfillBehaviorIT`（来源占比在容差内、关注入口的浏览者当时确实在关注、自主入口频道等于内容所属领域、点击的曝光数等于 ENTRY 的浏览数、各入口 CTR 的顺序、关注/搜索/曝光不早于加入日期、每篇内容有标签、搜索日志有点击和无点击两类）。
 - 既有测试：`RealtimeEventPlannerTest`、`RealtimeEventHandlerTest`、`RealtimePipelineIT` 随事件结构调整；其余必须继续全部通过。
+
+## 5.1 实现时的偏差
+
+- **库结构要在 Hibernate 之前建好**：`defer-datasource-initialization=true` 让 Spring Boot 自己的 `schema.sql` 在 Hibernate `validate` 之后才执行，新增带实体的表会报"缺表"（之前所有带实体的表都早于实体存在，没暴露；新库启动实际上也会失败）。`SchemaUpgrader` 现在先补列，再在 Hibernate 之前执行一遍幂等的 `schema.sql`，新库、旧库都能启动，已用空 schema 实测。
+- `pv_log` 之外的新增行为（关注、搜索、标签）只在回填里生成；`BehaviorEventGenerator` 保留了 8 参数构造函数（不记录曝光等），12 参数的是完整版。
+- 关注规划抽成 `FollowPlanner`，没有放进回填服务。
+- 实时侧的 `RealtimeEventPlanner.planBatch` 多了一个带综合频道 id 的重载；不传时行为与以前完全一致。`RealtimeEventProducer` 因此多依赖了 `ChannelRepository`。
+- **KOL 统计日**：新的浏览热度衰减让 PV 的最后一天只比历史结束日晚几天，原来的"PV 末日 − 30 天"会把统计日推得太早（新人还没加入、RISING 分层消失）。`POST /api/admin/analytics/kol/rebuild` 不传 `asOf` 时改为取最近一次登录/发帖的日期（不晚于今天），前端一键重算和 `seed-demo.sh` 都不再自己估算，前端删掉了 `kolAsOfFromPvEnd`。
+- **RISING 画像**的最近一次登录从 `end−4` 改成 `end−1`：模拟里有大量几乎每天登录的常驻员工，4 天前的新近度排名只是中游，落不进"成长潜力新人"（`KolEndToEndIT` 因此失败，已修正）。
+- 验收数据（演示库，2260 次浏览）：分享 42%、其他 32%、搜索 10%、入口 17%（其中自主入口约 2.4%）；各入口点击率与设定一致（推荐 4%、热点 6%、视频 10%、自主 12%、关注 20%）。
 
 ## 6. 明确不做的范围（Out of Scope）
 
