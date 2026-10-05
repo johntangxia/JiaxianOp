@@ -52,6 +52,14 @@ scripts/smoke-test.sh                      # 可选：冒烟测试
 
 停止：`docker compose --profile app down`（加 `-v` 会同时删除数据卷）。
 
+**演示数据是持久化的**：数据库放在 Docker 卷 `opengauss-data` 里，重启电脑、`docker compose stop/down`、重建镜像都不会丢，下次启动直接用，不用重新生成；只有 `down -v` 会删。灌好一次之后可以存个快照，被误清空或做了破坏性实验时几十秒恢复：
+
+```bash
+scripts/demo-snapshot.sh save       # 保存当前数据（约 1 分钟，快照约 500MB，存在 .demo-snapshots/，已被 git 忽略）
+scripts/demo-snapshot.sh restore    # 用快照覆盖当前数据库（会短暂停止数据库和后端）
+scripts/demo-snapshot.sh list       # 列出快照；也可以 save/restore 指定名字
+```
+
 ## 开发模式
 
 只拉起基础设施，后端和前端在本机跑：
@@ -68,10 +76,13 @@ cd frontend && npm install && VITE_API_TARGET=http://localhost:8093 npm run dev 
 
 ```bash
 docker compose up -d           # 后端的集成测试连真实的 OpenGauss、Redis 和 Kafka
-cd backend && mvn test         # 后端：单元测试 + 集成测试
+scripts/test-backend.sh        # 后端：单元测试 + 集成测试（约 15 分钟；先自动建好独立的测试库）
+scripts/test-backend.sh -Dtest=PeopleEndToEndIT   # 额外参数原样传给 mvn
 cd frontend && npm test        # 前端：纯逻辑和图表配置的单元测试
 cd frontend && npm run build   # 前端：类型检查 + 生产构建
 ```
+
+后端测试**不碰演示数据，也不用停后端容器**：测试连独立的数据库 `jiaxian_test`、Kafka 主题 `community-events-test`、消费组 `jiaxian-analytics-realtime-test` 和 Redis 库 1（配置在 `backend/src/test/resources/application.properties`，`TestIsolationIT` 守着这一点）。第一次跑之前要建库，`scripts/test-backend.sh` 会自动执行 `scripts/create-test-db.sh`（幂等）；直接用 `mvn test` 的话要先手动跑一次这个脚本。
 
 ## 配置
 
