@@ -55,18 +55,27 @@ class HistoricalBackfillPersonaIT {
                     assertThat(loginCount(id, START, END.plusDays(1))).as("DORMANT #%d", i).isEqualTo(8);
                     assertThat(loginCount(id, END.minusDays(120), END.plusDays(1))).as("DORMANT #%d", i).isZero();
                 }
-                case RANDOM -> assertThat(loginCount(id, START, END.plusDays(1))).as("RANDOM #%d", i).isBetween(5L, 24L);
+                case RANDOM -> assertThat(loginCount(id, LocalDate.of(2000, 1, 1), communityJoinDate(id)))
+                    .as("RANDOM #%d logs in before joining the community", i).isZero();
             }
         }
     }
 
     @Test
-    void withoutPersonasEveryoneKeepsTheOriginalRandomLogins() {
+    void withoutPersonasEveryoneFollowsTheActivityModelAndNeverLogsInBeforeJoining() {
         backfillService.runBackfill(config(false));
 
         List<Long> employeeIds = jdbc.queryForList("SELECT id FROM employee ORDER BY id", Long.class);
+        long total = 0;
         for (long id : employeeIds) {
-            assertThat(loginCount(id, START, END.plusDays(1))).isBetween(5L, 24L);
+            assertThat(loginCount(id, LocalDate.of(2000, 1, 1), communityJoinDate(id))).isZero();
+            total += loginCount(id, START, END.plusDays(1));
         }
+        assertThat(total).isGreaterThan(100);
+    }
+
+    private LocalDate communityJoinDate(long employeeId) {
+        return jdbc.queryForObject("SELECT community_join_date FROM employee WHERE id = ?",
+            java.sql.Timestamp.class, employeeId).toLocalDateTime().toLocalDate();
     }
 }

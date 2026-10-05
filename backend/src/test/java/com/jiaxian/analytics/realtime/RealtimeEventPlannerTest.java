@@ -128,4 +128,28 @@ class RealtimeEventPlannerTest {
 
         assertThat(first).isEqualTo(second);
     }
+
+    @Test
+    void employeesWhoHaveNotJoinedTheCommunityNeverAct() {
+        RealtimeEventPlanner planner = new RealtimeEventPlanner(new Random(42));
+        List<Employee> employees = List.of(
+            Employee.builder().id(1L).communityJoinDate(NOW.toLocalDate().minusDays(30)).build(),
+            Employee.builder().id(2L).communityJoinDate(NOW.toLocalDate()).build(),
+            Employee.builder().id(3L).communityJoinDate(NOW.toLocalDate().plusDays(1)).build(),
+            Employee.builder().id(4L).build());
+
+        List<RealtimeEvent> events = planner.planBatch(2000, BATCH, NOW, employees, List.of(content(1, 0.5)), NO_COMMENTS);
+
+        assertThat(events).extracting(RealtimeEvent::getActorEmployeeId).doesNotContain(3L);
+        assertThat(events).extracting(RealtimeEvent::getActorEmployeeId).contains(1L, 2L, 4L);
+    }
+
+    @Test
+    void returnsNoEventsWhenNobodyHasJoinedYet() {
+        RealtimeEventPlanner planner = new RealtimeEventPlanner(new Random(42));
+        List<Employee> employees = List.of(
+            Employee.builder().id(1L).communityJoinDate(NOW.toLocalDate().plusDays(5)).build());
+
+        assertThat(planner.planBatch(50, BATCH, NOW, employees, List.of(content(1, 0.5)), NO_COMMENTS)).isEmpty();
+    }
 }

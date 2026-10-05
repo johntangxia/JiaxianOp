@@ -1,5 +1,6 @@
 package com.jiaxian.analytics.simulator;
 
+import com.jiaxian.analytics.domain.Channel;
 import com.jiaxian.analytics.domain.Comment;
 import com.jiaxian.analytics.domain.Content;
 import com.jiaxian.analytics.domain.ContentAuthor;
@@ -7,14 +8,27 @@ import com.jiaxian.analytics.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 
 @Service
 public class HistoricalBackfillService {
+
+    /**
+     * 沉默读者约占三分之一，不互动；为了让互动总量和以前大致相当，非沉默读者的互动概率乘以这个系数。
+     */
+    static final double INTERACTION_BOOST = 1.5;
+    static final double LIKE_PROBABILITY = 0.10 * INTERACTION_BOOST;
+    static final double SHARE_PROBABILITY = 0.05 * INTERACTION_BOOST;
+    static final double FAVORITE_PROBABILITY = 0.03 * INTERACTION_BOOST;
+    static final double COMMENT_PROBABILITY = 0.08 * INTERACTION_BOOST;
+    private static final long LOGIN_STREAM_SALT = 998_244_353L;
 
     private final EmployeeRepository employeeRepository;
     private final AccountRepository accountRepository;
@@ -82,65 +96,85 @@ public class HistoricalBackfillService {
             }
         }
 
+        Map<Long, String> channelNames = new HashMap<>();
+        for (Channel channel : channelRepository.findAll()) {
+            channelNames.put(channel.getId(), channel.getName());
+        }
+        ActivityModel activityModel = new ActivityModel(config.getHistoryEnd());
+        ViewerPicker viewerPicker = new ViewerPicker(entities.getProfiles(), activityModel);
+
         for (Content content : entities.getContents()) {
             List<Comment> topLevelComments = new ArrayList<>();
+            String channelName = channelNames.get(content.getChannelId());
             // 热度权重越高，围绕这篇内容产生的浏览/点赞/评论事件越多，制造二八效应。
             int viewCount = 1 + (int) (content.getPopularityWeight() * 50);
             for (int i = 0; i < viewCount; i++) {
-                var viewer = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
-                LocalDateTime occurTime = randomTimeAfter(content.getPublishTime(), random);
-                eventGenerator.generateView(content.getId(), viewer.getId(), occurTime, config.getBatchId());
+                // 浏览时间：半衰期约 2 天的衰减 + 周末/上班时段规律；浏览者必须已加入社区，约 70% 来自本领域。
+                LocalDateTime occurTime = ActivityModel.viewTime(content.getPublishTime(), random);
+                Optional<EmployeeProfile> picked = viewerPicker.pick(channelName, false, occurTime, random);
+                if (picked.isEmpty()) {
+                    continue;
+                }
+                EmployeeProfile viewer = picked.get();
+                Long viewerId = viewer.employee().getId();
+                eventGenerator.generateView(content.getId(), viewerId, occurTime, config.getBatchId());
 
-                if (random.nextDouble() < 0.1) {
-                    eventGenerator.generateLike(content.getId(), viewer.getId(), occurTime, config.getBatchId());
+                if (viewer.lurker()) {
+                    continue;
                 }
-                if (random.nextDouble() < 0.05) {
-                    eventGenerator.generateShare(content.getId(), viewer.getId(), occurTime, config.getBatchId());
+                if (random.nextDouble() < LIKE_PROBABILITY) {
+                    eventGenerator.generateLike(content.getId(), viewerId, occurTime, config.getBatchId());
                 }
-                if (random.nextDouble() < 0.03) {
-                    eventGenerator.generateFavorite(content.getId(), viewer.getId(), occurTime, config.getBatchId());
+                if (random.nextDouble() < SHARE_PROBABILITY) {
+                    eventGenerator.generateShare(content.getId(), viewerId, occurTime, config.getBatchId());
                 }
-                if (random.nextDouble() < 0.08) {
+                if (random.nextDouble() < FAVORITE_PROBABILITY) {
+                    eventGenerator.generateFavorite(content.getId(), viewerId, occurTime, config.getBatchId());
+                }
+                if (random.nextDouble() < COMMENT_PROBABILITY) {
                     Comment comment;
                     if (!topLevelComments.isEmpty() && random.nextDouble() < 0.3) {
                         Comment parent = topLevelComments.get(random.nextInt(topLevelComments.size()));
-                        LocalDateTime replyTime = randomTimeAfter(parent.getCreateTime(), random);
+                        LocalDateTime replyTime = ActivityModel.viewTime(parent.getCreateTime(), random);
                         comment = eventGenerator.generateComment(
-                            content.getId(), parent.getId(), viewer.getId(), replyTime, config.getBatchId());
+                            content.getId(), parent.getId(), viewerId, replyTime, config.getBatchId());
                     } else {
                         comment = eventGenerator.generateComment(
-                            content.getId(), null, viewer.getId(), occurTime, config.getBatchId());
+                            content.getId(), null, viewerId, occurTime, config.getBatchId());
                         topLevelComments.add(comment);
                     }
                     if (random.nextDouble() < 0.3) {
-                        var commentLiker = entities.getEmployees().get(random.nextInt(entities.getEmployees().size()));
-                        LocalDateTime likeTime = randomTimeAfter(comment.getCreateTime(), random);
-                        eventGenerator.generateCommentLike(comment.getId(), commentLiker.getId(), likeTime, config.getBatchId());
+                        LocalDateTime likeTime = ActivityModel.viewTime(comment.getCreateTime(), random);
+                        Optional<EmployeeProfile> commentLiker =
+                            viewerPicker.pick(channelName, true, likeTime, random);
+                        commentLiker.ifPresent(liker -> eventGenerator.generateCommentLike(
+                            comment.getId(), liker.employee().getId(), likeTime, config.getBatchId()));
                     }
                 }
             }
         }
 
-        // 开启画像时，非 RANDOM 画像的员工用独立随机流规划登录；RANDOM 员工保持原有逻辑（沿用主随机流）。
-        var employees = entities.getEmployees();
-        List<BloggerPersona> personas = config.isPersonas()
-            ? PersonaAssigner.assign(employees.size(), config.getRandomSeed()) : null;
-        for (int employeeIndex = 0; employeeIndex < employees.size(); employeeIndex++) {
-            var employee = employees.get(employeeIndex);
-            BloggerPersona persona = personas == null ? BloggerPersona.RANDOM : personas.get(employeeIndex);
-            if (persona != BloggerPersona.RANDOM) {
+        // 登录：画像员工沿用 PersonaLoginPlanner 的规划；RANDOM 员工按留存分型每天抽一次，
+        // 且不早于加入社区的日期。两者都用独立随机流，不扰动回填的主随机序列。
+        for (int employeeIndex = 0; employeeIndex < entities.getProfiles().size(); employeeIndex++) {
+            EmployeeProfile profile = entities.getProfiles().get(employeeIndex);
+            Long employeeId = profile.employee().getId();
+            if (profile.persona() != BloggerPersona.RANDOM) {
                 Random personaRandom = new Random(config.getRandomSeed() * 1_000_003L + employeeIndex);
                 for (LocalDateTime loginTime : PersonaLoginPlanner.plan(
-                        persona, config.getHistoryStart(), config.getHistoryEnd(), personaRandom)) {
-                    eventGenerator.generateLogin(employee.getId(), loginTime, config.getBatchId());
+                        profile.persona(), config.getHistoryStart(), config.getHistoryEnd(), personaRandom)) {
+                    eventGenerator.generateLogin(employeeId, loginTime, config.getBatchId());
                 }
                 continue;
             }
-            int loginDays = 5 + random.nextInt(20);
-            for (int i = 0; i < loginDays; i++) {
-                LocalDateTime loginTime = randomTimeInRange(
-                    config.getHistoryStart().atStartOfDay(), config.getHistoryEnd().atStartOfDay(), random);
-                eventGenerator.generateLogin(employee.getId(), loginTime, config.getBatchId());
+            Random loginRandom = new Random(config.getRandomSeed() * LOGIN_STREAM_SALT + employeeIndex);
+            LocalDate firstDay = profile.joinDate().isAfter(config.getHistoryStart())
+                ? profile.joinDate() : config.getHistoryStart();
+            for (LocalDate day = firstDay; day.isBefore(config.getHistoryEnd()); day = day.plusDays(1)) {
+                if (loginRandom.nextDouble() < activityModel.dailyActivity(profile, day)) {
+                    eventGenerator.generateLogin(employeeId, ActivityModel.timeOfDay(day, loginRandom),
+                        config.getBatchId());
+                }
             }
         }
 
@@ -162,20 +196,9 @@ public class HistoricalBackfillService {
         commentRepository.deleteAll();
         contentAuthorRepository.deleteAll();
         contentRepository.deleteAll();
+        channelRepository.deleteByCategory(Channel.CATEGORY_RETIRED);
         accountMemberRepository.deleteAll();
         accountRepository.deleteAll();
         employeeRepository.deleteAll();
-    }
-
-    private LocalDateTime randomTimeAfter(LocalDateTime start, Random random) {
-        long maxOffsetHours = 24L * 30;
-        long offset = (long) (random.nextDouble() * maxOffsetHours);
-        return start.plusHours(offset);
-    }
-
-    private LocalDateTime randomTimeInRange(LocalDateTime start, LocalDateTime end, Random random) {
-        long rangeHours = ChronoUnit.HOURS.between(start, end);
-        long offset = (long) (random.nextDouble() * Math.max(rangeHours, 1));
-        return start.plusHours(offset);
     }
 }

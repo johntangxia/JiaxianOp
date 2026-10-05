@@ -29,11 +29,20 @@ public class RealtimeEventPlanner {
     public List<RealtimeEvent> planBatch(int eventCount, String batchId, LocalDateTime occurTime,
                                          List<Employee> employees, List<Content> contents,
                                          Function<Long, List<Comment>> commentsByContentId) {
+        // 还没加入社区的员工不会产生任何行为；加入日期为空的旧数据视为一直在社区里。
+        List<Employee> joined = employees.stream().filter(e -> hasJoined(e, occurTime)).toList();
         List<RealtimeEvent> events = new ArrayList<>(eventCount);
+        if (joined.isEmpty()) {
+            return events;
+        }
         for (int i = 0; i < eventCount; i++) {
-            events.add(planOne(batchId, occurTime, employees, contents, commentsByContentId));
+            events.add(planOne(batchId, occurTime, joined, contents, commentsByContentId));
         }
         return events;
+    }
+
+    private static boolean hasJoined(Employee employee, LocalDateTime at) {
+        return employee.getCommunityJoinDate() == null || !employee.getCommunityJoinDate().isAfter(at.toLocalDate());
     }
 
     private RealtimeEvent planOne(String batchId, LocalDateTime occurTime, List<Employee> employees,
