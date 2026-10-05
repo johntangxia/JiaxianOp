@@ -395,3 +395,47 @@ export interface ChannelDetail {
   composition: MixSlice[];
   topContents: TopContent[];
 }
+
+// ---- 频道竞赛榜 ----
+
+export type ContestType = "WEEK" | "MONTH";
+
+export interface PeriodOption {
+  periodStart: string;
+  periodEnd: string;
+  complete: boolean;
+}
+
+export interface DimensionScore {
+  key: string;
+  label: string;
+  weight: number;
+  score: number;
+}
+
+/** 名次变化 = 上期名次 − 本期名次（正数是上升）；上期没有数据时上期相关字段为 null。 */
+export interface ContestEntry {
+  rank: number;
+  previousRank: number | null;
+  rankChange: number | null;
+  channelId: number;
+  name: string;
+  score: number;
+  previousScore: number | null;
+  scoreChange: number | null;
+  dimensions: DimensionScore[];
+  strongest: string | null;
+  weakest: string | null;
+}
+
+export interface ContestBoards {
+  type: ContestType;
+  periodStart: string;
+  periodEnd: string;
+  previousStart: string;
+  previousEnd: string;
+  previousHasData: boolean;
+  domain: ContestEntry[];
+  composite: ContestEntry[];
+  improvers: ContestEntry[];
+}
