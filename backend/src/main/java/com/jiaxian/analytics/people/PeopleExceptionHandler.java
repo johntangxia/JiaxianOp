@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** 只作用于创作者和用户分析接口：参数问题 400，员工不存在 404，都返回一句文字说明。 */
-@RestControllerAdvice(assignableTypes = CreatorController.class)
+@RestControllerAdvice(assignableTypes = {CreatorController.class, UserController.class})
 public class PeopleExceptionHandler {
 
     @ExceptionHandler(InvalidPeopleQueryException.class)
