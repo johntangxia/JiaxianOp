@@ -50,7 +50,7 @@ public class GrowthQueryRepository {
         .periodEnd(date(rs.getTimestamp(7))).message(rs.getString(8)).status(AlertStatus.valueOf(rs.getString(9)))
         .createdAt(rs.getTimestamp(10).toLocalDateTime()).updatedAt(rs.getTimestamp(11).toLocalDateTime()).build();
 
-    /** 告警分页：严重的在前，再按创建时间倒序。任何筛选条件为空表示不筛选。 */
+    /** 告警分页：严重的在前，再按创建时间倒序；同一时刻创建的（同一次重算）保持生成顺序。任何筛选条件为空表示不筛选。 */
     public AlertPage alerts(AlertStatus status, String kind, GrowthEntityType entityType, int limit, int offset) {
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> params = new ArrayList<>();
@@ -68,7 +68,7 @@ public class GrowthQueryRepository {
         }
         long total = jdbc.queryForObject("SELECT COUNT(*) FROM growth_alert" + where, Long.class, params.toArray());
         List<GrowthAlert> alerts = jdbc.query("SELECT " + ALERT_COLUMNS + " FROM growth_alert" + where
-            + " ORDER BY severity ASC, created_at DESC, id DESC LIMIT " + limit + " OFFSET " + offset, ALERT_MAPPER, params.toArray());
+            + " ORDER BY severity ASC, created_at DESC, id ASC LIMIT " + limit + " OFFSET " + offset, ALERT_MAPPER, params.toArray());
         return new AlertPage(total, alerts);
     }
 

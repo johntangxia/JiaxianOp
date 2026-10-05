@@ -64,6 +64,20 @@ class GrowthQueryRepositoryIT {
     }
 
     @Test
+    void alertsCreatedInTheSameInstantKeepTheirGenerationOrder() {
+        LocalDateTime instant = LocalDateTime.of(2019, 6, 30, 9, 40);
+        for (String name : List.of("同时刻甲", "同时刻乙")) {
+            alertRepository.save(GrowthAlert.builder().kind("IT测试_同时刻").severity("WARN").entityType(GrowthEntityType.BLOGGER)
+                .entityName(name).periodEnd(DAY).message("m").status(AlertStatus.OPEN).createdAt(instant).updatedAt(instant).build());
+        }
+
+        List<String> names = repository.alerts(null, "IT测试_同时刻", null, 10, 0).alerts().stream()
+            .map(GrowthAlert::getEntityName).toList();
+
+        assertThat(names).containsExactly("同时刻甲", "同时刻乙");
+    }
+
+    @Test
     void alertPagesReportTheTotalAndCountsPerStatus() {
         Map<AlertStatus, Long> before = repository.alertCounts();
         alert("IT测试_E", "WARN", GrowthEntityType.CHANNEL, AlertStatus.OPEN, 1);
