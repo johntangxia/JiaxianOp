@@ -119,6 +119,37 @@ expect_json "沉默读者名单（有姓名）" "$WEB_URL/api/readers/lurkers?fr
 expect_status "读者分析拒绝非法的同期群粒度" "$WEB_URL/api/readers/retention?granularity=DAY&from=$READER_FROM&to=$READER_TO" 400
 expect_status "沉默读者名单拒绝超大的 limit" "$WEB_URL/api/readers/lurkers?from=$READER_FROM&to=$READER_TO&limit=101" 400
 
+echo "增长闭环"
+expect_json "部门渗透率（含全社区合计）" "$WEB_URL/api/growth/departments?days=30" \
+  'len(d["departments"]) > 0 and d["overall"]["current"]["members"] == sum(r["current"]["members"] for r in d["departments"])'
+expect_json "热点与潜力内容" "$WEB_URL/api/growth/hot-contents?limit=10" 'isinstance(d["hot"], list) and isinstance(d["potential"], list)'
+if curl -fs -m 120 -X POST "$WEB_URL/api/admin/growth/alerts/rebuild" | python3 -c "import json, sys; d = json.load(sys.stdin); sys.exit(0 if d['total'] >= 0 else 1)" 2> /dev/null; then
+  ok "重算告警"
+else
+  bad "重算告警"
+fi
+expect_json "告警列表（有各状态计数）" "$WEB_URL/api/growth/alerts?limit=5" 'set(d["counts"]) == {"OPEN", "ACKED", "CLOSED"}'
+SMOKE_TASK=$(curl -fs -m 30 -X POST -H 'Content-Type: application/json' "$WEB_URL/api/admin/growth/tasks" \
+  -d '{"title":"冒烟测试任务","entityType":"OVERALL","metric":"ACTIVE_RATE","targetValue":0.9}' \
+  | python3 -c "import json, sys; print(json.load(sys.stdin)['task']['id'])") || SMOKE_TASK=""
+if [[ -n $SMOKE_TASK ]]; then
+  ok "创建运营任务"
+  expect_json "任务详情（8 个窗口的效果趋势）" "$WEB_URL/api/growth/tasks/$SMOKE_TASK" 'len(d["series"]) == 8 and "progress" in d["view"]'
+  if [[ $(curl -s -m 20 -o /dev/null -w '%{http_code}' -X DELETE "$WEB_URL/api/admin/growth/tasks/$SMOKE_TASK") == 204 ]]; then
+    ok "删除运营任务"
+  else
+    bad "删除运营任务"
+  fi
+else
+  bad "创建运营任务"
+fi
+if [[ $(curl -s -m 20 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' "$WEB_URL/api/admin/growth/tasks" \
+  -d '{"title":"x","entityType":"OVERALL","metric":"PV","targetValue":1}') == 400 ]]; then
+  ok "任务指标和对象不匹配返回 400"
+else
+  bad "任务指标和对象不匹配返回 400"
+fi
+
 echo "系统管理与维度"
 expect_json "积分权重（15 个动作）" "$WEB_URL/api/admin/points-config" 'len(d) == 15'
 expect_json "建议文案库" "$WEB_URL/api/admin/playbook" 'len(d) >= 6'
