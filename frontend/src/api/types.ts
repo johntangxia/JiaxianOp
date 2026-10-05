@@ -400,7 +400,7 @@ export interface ChannelDetail {
 
 export type ContestType = "WEEK" | "MONTH";
 
-export interface PeriodOption {
+export interface ContestPeriod {
   periodStart: string;
   periodEnd: string;
   complete: boolean;

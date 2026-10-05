@@ -1,4 +1,4 @@
-import type { ContestType, PeriodOption } from "../api/types";
+import type { ContestType, ContestPeriod } from "../api/types";
 
 export type MoveKind = "up" | "down" | "flat" | "none";
 
@@ -35,7 +35,7 @@ export function scoreChangeText(change: number | null | undefined): string {
 }
 
 /** 周期的展示文字：周榜 "2025-06-16 ~ 06-22"，月榜 "2025 年 6 月"，没过完的加"（进行中）"。 */
-export function periodLabel(type: ContestType, period: PeriodOption): string {
+export function periodLabel(type: ContestType, period: ContestPeriod): string {
   const text =
     type === "WEEK"
       ? `${period.periodStart} ~ ${period.periodEnd.slice(5)}`
@@ -44,7 +44,7 @@ export function periodLabel(type: ContestType, period: PeriodOption): string {
 }
 
 /** 默认周期：最近一个已结束的，没有已结束的就取最新的；没有周期返回 null。 */
-export function defaultPeriod(periods: PeriodOption[]): PeriodOption | null {
+export function defaultPeriod(periods: ContestPeriod[]): ContestPeriod | null {
   return periods.find((p) => p.complete) ?? periods[0] ?? null;
 }
 

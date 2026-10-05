@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PeriodOption } from "../api/types";
+import type { ContestPeriod } from "../api/types";
 import { defaultPeriod, formatScore, medalClass, periodLabel, rankMove, scoreChangeText, scoreColor } from "./contest";
 
-const week = (start: string, end: string, complete: boolean): PeriodOption => ({ periodStart: start, periodEnd: end, complete });
+const week = (start: string, end: string, complete: boolean): ContestPeriod => ({ periodStart: start, periodEnd: end, complete });
 
 describe("rankMove", () => {
   it("shows up, down, flat and missing", () => {

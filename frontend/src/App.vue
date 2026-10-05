@@ -21,6 +21,7 @@ const activeMenu = computed(() => {
         <el-menu :default-active="activeMenu" :default-openeds="['admin']" router class="app-menu">
           <el-menu-item index="/">总览看板</el-menu-item>
           <el-menu-item index="/channels">频道驾驶舱</el-menu-item>
+          <el-menu-item index="/contest">频道竞赛榜</el-menu-item>
           <el-menu-item index="/leaderboard">积分排行榜</el-menu-item>
           <el-menu-item index="/kol">KOL 管理</el-menu-item>
           <el-sub-menu index="admin">

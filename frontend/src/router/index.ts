@@ -17,6 +17,12 @@ export default createRouter({
       meta: { title: "频道详情" },
     },
     {
+      path: "/contest",
+      name: "contest",
+      component: () => import("../views/contest/ContestView.vue"),
+      meta: { title: "频道竞赛榜" },
+    },
+    {
       path: "/leaderboard",
       name: "leaderboard",
       component: () => import("../views/LeaderboardView.vue"),

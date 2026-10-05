@@ -1,8 +1,8 @@
 import { getJson } from "./http";
-import type { ContestBoards, ContestType, PeriodOption } from "./types";
+import type { ContestBoards, ContestType, ContestPeriod } from "./types";
 
-export function fetchPeriods(type: ContestType): Promise<PeriodOption[]> {
-  return getJson<PeriodOption[]>("/api/contest/periods", { type });
+export function fetchPeriods(type: ContestType): Promise<ContestPeriod[]> {
+  return getJson<ContestPeriod[]>("/api/contest/periods", { type });
 }
 
 export function fetchBoards(type: ContestType, periodStart: string): Promise<ContestBoards> {
