@@ -17,6 +17,12 @@ export default createRouter({
       meta: { title: "频道详情" },
     },
     {
+      path: "/readers",
+      name: "readers",
+      component: () => import("../views/readers/ReadersView.vue"),
+      meta: { title: "读者分析" },
+    },
+    {
       path: "/accounts/:id",
       name: "account-detail",
       component: () => import("../views/drill/AccountView.vue"),

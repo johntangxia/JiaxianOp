@@ -14,7 +14,7 @@ describe("defaultBackfillForm", () => {
     expect(form.historyEnd).toBe("2026-09-05");
     expect(form.historyStart).toBe("2025-03-01");
     expect(form).toMatchObject({
-      batchId: "demo", employeeCount: 50, accountCount: 20, teamAccountRatio: 0.25,
+      batchId: "demo", employeeCount: 200, accountCount: 20, teamAccountRatio: 0.25,
       contentCount: 300, randomSeed: 7, personas: true,
     });
   });
@@ -44,7 +44,7 @@ describe("request bodies", () => {
     const body = buildBackfillBody({ ...defaultBackfillForm(new Date(2026, 9, 5)), batchId: " demo " });
 
     expect(body).toEqual({
-      batchId: "demo", employeeCount: 50, accountCount: 20, teamAccountRatio: 0.25, contentCount: 300,
+      batchId: "demo", employeeCount: 200, accountCount: 20, teamAccountRatio: 0.25, contentCount: 300,
       historyStart: "2025-03-01", historyEnd: "2026-09-05", randomSeed: 7, personas: true,
     });
   });
