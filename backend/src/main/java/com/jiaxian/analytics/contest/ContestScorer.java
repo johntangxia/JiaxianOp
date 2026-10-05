@@ -47,7 +47,7 @@ public final class ContestScorer {
         return result;
     }
 
-    static double[] percentiles(double[] values) {
+    public static double[] percentiles(double[] values) {
         int n = values.length;
         double[] scores = new double[n];
         boolean anyPositive = false;
