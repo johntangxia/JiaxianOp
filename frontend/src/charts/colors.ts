@@ -14,3 +14,11 @@ export const LOGINS = "#2f6fed";
 export const RFM_R = "#2f6fed";
 export const RFM_F = "#14a38b";
 export const RFM_M = "#f08c2c";
+
+// 频道驾驶舱：PV 来源构成
+export const SOURCE_OWN_ENTRY = "#2f6fed";
+export const SOURCE_COMPOSITE_ENTRY = "#8b5cf6";
+export const SOURCE_SEARCH = "#14a38b";
+export const SOURCE_SHARE = "#f08c2c";
+export const SOURCE_OTHER = "#9aa3b2";
+export const CTR_LINE = "#d9363e";

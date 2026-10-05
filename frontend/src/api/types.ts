@@ -283,3 +283,115 @@ export interface SnapshotSummary {
   years: number;
   rowsWritten: number;
 }
+
+// ---- 频道驾驶舱 ----
+
+export interface DistributionMetrics {
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  reachUv: number;
+  clickUv: number;
+  avgDwellSeconds: number | null;
+}
+
+export interface SourceMix {
+  ownEntry: number;
+  compositeEntry: number;
+  search: number;
+  share: number;
+  other: number;
+}
+
+export interface ContentMetrics {
+  pv: number;
+  uv: number;
+  interactions: number;
+  interactionRate: number | null;
+  top1Share: number | null;
+  top3Share: number | null;
+  sourceMix: SourceMix;
+  ownEntryShare: number | null;
+  compositeDependency: number | null;
+}
+
+export interface SupplyMetrics {
+  contents: number;
+  authors: number;
+}
+
+export interface CompositeCoverage {
+  domainsCovered: number;
+  topDomainShare: number | null;
+}
+
+/** 综合频道的 content/supply 为 null，领域频道的 coverage 为 null。 */
+export interface ChannelPeriod {
+  distribution: DistributionMetrics;
+  content: ContentMetrics | null;
+  supply: SupplyMetrics | null;
+  coverage: CompositeCoverage | null;
+}
+
+export type DiagnosisSeverity = "CRITICAL" | "WARN" | "INFO";
+
+export interface Diagnosis {
+  code: string;
+  severity: DiagnosisSeverity;
+  message: string;
+}
+
+export interface ChannelRow {
+  id: number;
+  name: string;
+  category: string;
+  current: ChannelPeriod;
+  previous: ChannelPeriod;
+  diagnoses: Diagnosis[];
+}
+
+export interface Cockpit {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  composite: ChannelRow[];
+  domain: ChannelRow[];
+  compositeBenchmark: Record<string, number>;
+  domainBenchmark: Record<string, number>;
+}
+
+export interface TrendPoint {
+  periodStart: string;
+  ownEntry: number;
+  compositeEntry: number;
+  search: number;
+  share: number;
+  other: number;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+}
+
+export interface MixSlice {
+  key: string;
+  label: string;
+  value: number;
+}
+
+export interface TopContent {
+  contentId: number;
+  type: "ARTICLE" | "VIDEO";
+  accountName: string;
+  publishTime: string;
+  pv: number;
+  interactions: number;
+}
+
+export interface ChannelDetail {
+  row: ChannelRow;
+  granularity: Granularity;
+  trend: TrendPoint[];
+  composition: MixSlice[];
+  topContents: TopContent[];
+}
