@@ -231,3 +231,43 @@ CREATE INDEX IF NOT EXISTS idx_follow_follower ON follow_relation(follower_emplo
 CREATE INDEX IF NOT EXISTS idx_search_log_time ON search_log(search_time);
 CREATE INDEX IF NOT EXISTS idx_content_tag_content ON content_tag(content_id);
 CREATE INDEX IF NOT EXISTS idx_content_tag_tag ON content_tag(tag);
+
+-- 增长闭环：告警（同一对象同一统计日的同类告警只有一条）和运营任务。
+-- 不设外键：它们指向的模拟对象会被历史回填整体重建，回填时一并清空。
+CREATE TABLE IF NOT EXISTS growth_alert (
+    id          BIGSERIAL PRIMARY KEY,
+    kind        VARCHAR(60) NOT NULL,
+    severity    VARCHAR(10) NOT NULL CHECK (severity IN ('CRITICAL', 'WARN')),
+    entity_type VARCHAR(20) NOT NULL,
+    entity_id   BIGINT,
+    entity_name VARCHAR(100) NOT NULL,
+    period_end  DATE NOT NULL,
+    message     VARCHAR(500) NOT NULL,
+    status      VARCHAR(10) NOT NULL CHECK (status IN ('OPEN', 'ACKED', 'CLOSED')),
+    created_at  TIMESTAMP NOT NULL,
+    updated_at  TIMESTAMP NOT NULL,
+    UNIQUE (kind, entity_type, entity_name, period_end)
+);
+
+CREATE TABLE IF NOT EXISTS growth_task (
+    id             BIGSERIAL PRIMARY KEY,
+    title          VARCHAR(200) NOT NULL,
+    task_type      VARCHAR(30) NOT NULL,
+    entity_type    VARCHAR(20) NOT NULL,
+    entity_id      BIGINT,
+    entity_name    VARCHAR(100),
+    metric         VARCHAR(30) NOT NULL,
+    baseline_value DOUBLE PRECISION,
+    target_value   DOUBLE PRECISION NOT NULL,
+    owner_name     VARCHAR(50),
+    start_date     DATE NOT NULL,
+    due_date       DATE,
+    status         VARCHAR(12) NOT NULL CHECK (status IN ('TODO', 'DOING', 'DONE', 'CANCELLED')),
+    note           VARCHAR(500),
+    alert_id       BIGINT,
+    created_at     TIMESTAMP NOT NULL,
+    updated_at     TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_growth_alert_status ON growth_alert(status, severity);
+CREATE INDEX IF NOT EXISTS idx_growth_task_status ON growth_task(status);

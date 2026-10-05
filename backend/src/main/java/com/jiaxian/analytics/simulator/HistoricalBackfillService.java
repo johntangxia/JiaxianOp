@@ -5,6 +5,8 @@ import com.jiaxian.analytics.domain.Comment;
 import com.jiaxian.analytics.domain.Content;
 import com.jiaxian.analytics.domain.ContentAuthor;
 import com.jiaxian.analytics.domain.Employee;
+import com.jiaxian.analytics.growth.GrowthAlertRepository;
+import com.jiaxian.analytics.growth.GrowthTaskRepository;
 import com.jiaxian.analytics.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +64,8 @@ public class HistoricalBackfillService {
     private final SearchLogRepository searchLogRepository;
     private final ContentTagRepository contentTagRepository;
     private final LoginBatchWriter loginBatchWriter;
+    private final GrowthAlertRepository growthAlertRepository;
+    private final GrowthTaskRepository growthTaskRepository;
 
     public HistoricalBackfillService(EmployeeRepository employeeRepository,
                                       AccountRepository accountRepository,
@@ -80,7 +84,9 @@ public class HistoricalBackfillService {
                                       FollowRelationRepository followRelationRepository,
                                       SearchLogRepository searchLogRepository,
                                       ContentTagRepository contentTagRepository,
-                                      LoginBatchWriter loginBatchWriter) {
+                                      LoginBatchWriter loginBatchWriter,
+                                      GrowthAlertRepository growthAlertRepository,
+                                      GrowthTaskRepository growthTaskRepository) {
         this.employeeRepository = employeeRepository;
         this.accountRepository = accountRepository;
         this.accountMemberRepository = accountMemberRepository;
@@ -99,6 +105,8 @@ public class HistoricalBackfillService {
         this.searchLogRepository = searchLogRepository;
         this.contentTagRepository = contentTagRepository;
         this.loginBatchWriter = loginBatchWriter;
+        this.growthAlertRepository = growthAlertRepository;
+        this.growthTaskRepository = growthTaskRepository;
     }
 
     @Transactional
@@ -293,6 +301,9 @@ public class HistoricalBackfillService {
     }
 
     private void clearPreviousSimulationData() {
+        // 告警和任务指向的模拟对象马上会被整体重建，它们没有外键，要一并清掉
+        growthTaskRepository.deleteAll();
+        growthAlertRepository.deleteAll();
         impressionRepository.deleteAll();
         searchLogRepository.deleteAll();
         followRelationRepository.deleteAll();
