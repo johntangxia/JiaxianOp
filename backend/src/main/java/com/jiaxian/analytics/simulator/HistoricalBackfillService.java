@@ -8,6 +8,7 @@ import com.jiaxian.analytics.domain.Employee;
 import com.jiaxian.analytics.growth.GrowthAlertRepository;
 import com.jiaxian.analytics.growth.GrowthTaskRepository;
 import com.jiaxian.analytics.repository.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,6 +63,7 @@ public class HistoricalBackfillService {
     private final ViewBatchWriter viewBatchWriter;
     private final GrowthAlertRepository growthAlertRepository;
     private final GrowthTaskRepository growthTaskRepository;
+    private final JdbcTemplate jdbc;
 
     public HistoricalBackfillService(EmployeeRepository employeeRepository,
                                       AccountRepository accountRepository,
@@ -83,7 +85,8 @@ public class HistoricalBackfillService {
                                       LoginBatchWriter loginBatchWriter,
                                       ViewBatchWriter viewBatchWriter,
                                       GrowthAlertRepository growthAlertRepository,
-                                      GrowthTaskRepository growthTaskRepository) {
+                                      GrowthTaskRepository growthTaskRepository,
+                                      JdbcTemplate jdbc) {
         this.employeeRepository = employeeRepository;
         this.accountRepository = accountRepository;
         this.accountMemberRepository = accountMemberRepository;
@@ -105,6 +108,7 @@ public class HistoricalBackfillService {
         this.viewBatchWriter = viewBatchWriter;
         this.growthAlertRepository = growthAlertRepository;
         this.growthTaskRepository = growthTaskRepository;
+        this.jdbc = jdbc;
     }
 
     @Transactional
@@ -380,26 +384,24 @@ public class HistoricalBackfillService {
         return Optional.of(active.get(random.nextInt(active.size())));
     }
 
+    /**
+     * 清空上一次的模拟数据。演示库里有几十万行浏览、上百万行曝光和积分流水，JPA 的 deleteAll() 会把它们逐条读进内存
+     * （后端容器因此被 OOM 杀掉），所以用 JDBC 的批量 DELETE，顺序按外键依赖从子表到父表。
+     * 汇总、快照、KOL 结果的外键是 ON DELETE CASCADE，随内容和员工一起清掉。
+     */
     private void clearPreviousSimulationData() {
         // 告警和任务指向的模拟对象马上会被整体重建，它们没有外键，要一并清掉
-        growthTaskRepository.deleteAll();
-        growthAlertRepository.deleteAll();
-        impressionRepository.deleteAll();
-        searchLogRepository.deleteAll();
-        followRelationRepository.deleteAll();
-        contentTagRepository.deleteAll();
-        pointsLedgerRepository.deleteAll();
-        editorialPickLogRepository.deleteAll();
-        activeActionLogRepository.deleteAll();
-        engagementLogRepository.deleteAll();
-        pvLogRepository.deleteAll();
-        commentRepository.deleteReplies();
-        commentRepository.deleteAll();
-        contentAuthorRepository.deleteAll();
-        contentRepository.deleteAll();
+        for (String table : List.of("growth_task", "growth_alert", "impression", "search_log", "follow_relation",
+            "content_tag", "points_ledger", "editorial_pick_log", "active_action_log", "engagement_log", "pv_log")) {
+            jdbc.update("DELETE FROM " + table);
+        }
+        jdbc.update("DELETE FROM comment WHERE parent_comment_id IS NOT NULL");
+        for (String table : List.of("comment", "content_author", "content")) {
+            jdbc.update("DELETE FROM " + table);
+        }
         channelRepository.deleteByCategory(Channel.CATEGORY_RETIRED);
-        accountMemberRepository.deleteAll();
-        accountRepository.deleteAll();
-        employeeRepository.deleteAll();
+        for (String table : List.of("account_member", "account", "employee")) {
+            jdbc.update("DELETE FROM " + table);
+        }
     }
 }
