@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import type { Granularity } from "../../api/types";
 import { formatNumber, formatPeriod, formatRate, rateClass } from "../../utils/format";
 import type { Kpis } from "../../utils/kpi";
@@ -9,7 +10,7 @@ defineProps<{ kpis: Kpis; granularity: Granularity }>();
 <template>
   <div class="kpi-row">
     <div class="panel kpi">
-      <div class="kpi-label">所选周期合计 PV</div>
+      <div class="kpi-label">所选周期合计 PV <GuidanceButton id="metric.pv" label="浏览量 PV" /></div>
       <div class="kpi-value">{{ formatNumber(kpis.totalPv) }}</div>
     </div>
 

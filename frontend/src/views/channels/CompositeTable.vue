@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import type { ChannelRow } from "../../api/types";
 import { compareNullable, formatPercent, formatSeconds } from "../../utils/channelMetrics";
 import { formatNumber } from "../../utils/format";
@@ -18,12 +19,14 @@ const by = (pick: (row: ChannelRow) => number | null | undefined) => (a: unknown
   <el-table :data="rows" row-key="id" class="clickable-table" row-class-name="clickable-row" @row-click="(row: unknown) => emit('open', r(row))">
     <el-table-column label="频道" prop="name" min-width="90" />
     <el-table-column label="曝光" min-width="110" sortable :sort-method="by((x) => x.current.distribution.impressions)">
+      <template #header>曝光 <GuidanceButton id="metric.entryExposure" label="曝光" /></template>
       <template #default="{ row }">{{ formatNumber(r(row).current.distribution.impressions) }}<DeltaText :current="r(row).current.distribution.impressions" :previous="r(row).previous.distribution.impressions" /></template>
     </el-table-column>
     <el-table-column label="点击" min-width="110" sortable :sort-method="by((x) => x.current.distribution.clicks)">
       <template #default="{ row }">{{ formatNumber(r(row).current.distribution.clicks) }}<DeltaText :current="r(row).current.distribution.clicks" :previous="r(row).previous.distribution.clicks" /></template>
     </el-table-column>
     <el-table-column label="点击率" min-width="90" sortable :sort-method="by((x) => x.current.distribution.ctr)">
+      <template #header>点击率 <GuidanceButton id="metric.entryCtr" label="点击率" /></template>
       <template #default="{ row }">{{ formatPercent(r(row).current.distribution.ctr) }}</template>
     </el-table-column>
     <el-table-column label="触达 UV" min-width="90" sortable :sort-method="by((x) => x.current.distribution.reachUv)">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, watch } from "vue";
 import { fetchFunnel } from "../../api/readers";
 import AsyncBlock from "../../components/AsyncBlock.vue";
@@ -19,7 +20,7 @@ const option = computed(() => (data.value ? buildFunnelOption(data.value.steps) 
 
 <template>
   <div class="panel">
-    <h3 class="panel-title">新成员激活漏斗 <span class="muted">（对象：{{ range.from }} ~ {{ range.to }} 加入社区的成员）</span></h3>
+    <h3 class="panel-title">新成员激活漏斗 <GuidanceButton id="page.readers.funnel" label="新成员激活漏斗" /> <span class="muted">（对象：{{ range.from }} ~ {{ range.to }} 加入社区的成员）</span></h3>
     <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.joined === 0" empty-text="所选区间内没有新加入的成员">
       <div v-if="data && data.joined > 0">
         <BaseChart :option="option" height="260px" />

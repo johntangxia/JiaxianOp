@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { guidanceKey } from "../../guidance/context";
+import { computed, inject, onMounted, ref, watch } from "vue";
 import { fetchReaderRange } from "../../api/readers";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import { parseIsoDate, toIsoDate } from "../../utils/dateRange";
@@ -14,6 +15,8 @@ const noData = ref(false);
 const asOf = ref<string | null>(null);
 const dataEnd = ref<string | null>(null);
 const tab = ref("lifecycle");
+const guidance = inject(guidanceKey);
+watch(tab, (value) => guidance?.setTab("users", value), { immediate: true, flush: "sync" });
 // 生命周期、价值分层里点一行 → 切到用户列表并带上筛选；nonce 让同一个筛选能重复触发
 const preset = ref<ListPreset>({ stage: null, value: null, nonce: 0 });
 

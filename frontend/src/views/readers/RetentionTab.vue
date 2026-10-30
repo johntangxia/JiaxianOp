@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, ref, watch } from "vue";
 import { fetchRetention } from "../../api/readers";
 import AsyncBlock from "../../components/AsyncBlock.vue";
@@ -20,7 +21,7 @@ const headers = computed(() => Array.from({ length: data.value?.periods ?? 0 }, 
 <template>
   <div class="panel">
     <div class="head">
-      <h3 class="panel-title">新成员留存同期群 <span class="muted">（按加入{{ granularity === "MONTH" ? "月" : "周" }}分组；格子 = 加入后第 k 个周期里至少活跃一天的人占比）</span></h3>
+      <h3 class="panel-title">新成员留存同期群 <GuidanceButton id="page.readers.retention" label="新成员留存同期群" /> <span class="muted">（按加入{{ granularity === "MONTH" ? "月" : "周" }}分组；格子 = 加入后第 k 个周期里至少活跃一天的人占比）</span></h3>
       <el-radio-group v-model="granularity" size="small">
         <el-radio-button value="MONTH">按月</el-radio-button>
         <el-radio-button value="WEEK">按周</el-radio-button>

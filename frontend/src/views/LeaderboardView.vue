@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../components/GuidanceButton.vue";
 import { computed, ref, watch } from "vue";
 import { fetchLeaderboard, fetchPeriods } from "../api/leaderboard";
 import type { PeriodType } from "../api/types";
@@ -89,7 +90,7 @@ function share(part: number, total: number): string {
       >
         <div v-if="entries.length > 0" class="page">
           <div class="panel">
-            <h3 class="panel-title">前 {{ Math.min(entries.length, 10) }} 名积分构成</h3>
+            <h3 class="panel-title">前 {{ Math.min(entries.length, 10) }} 名积分构成 <GuidanceButton id="metric.points" label="主动和被动积分" /></h3>
             <BaseChart :option="chartOption" :height="chartHeight" />
           </div>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed } from "vue";
 import type { PvTrend } from "../../api/types";
 import BaseChart from "../../components/BaseChart.vue";
@@ -25,7 +26,7 @@ const kindType: Record<TrendRow["kind"], "warning" | "primary" | "info"> = {
 
 <template>
   <div class="panel">
-    <h3 class="panel-title">PV 趋势</h3>
+    <h3 class="panel-title">PV 趋势 <GuidanceButton id="metric.forecast" label="PV 趋势预测" /></h3>
     <BaseChart :option="option" height="360px" />
     <p class="muted">实线为实际值，空心点表示进行中的周期（数据还不完整）；虚线和浅色带为预测值及置信区间。</p>
 

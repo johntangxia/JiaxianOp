@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { creatorRankingExportUrl, fetchCreatorRanking } from "../../api/people";
@@ -80,7 +81,7 @@ function open(row: unknown): void {
           <el-table-column label="UV" min-width="70"><template #default="{ row }">{{ formatNumber(r(row).uv) }}</template></el-table-column>
           <el-table-column label="互动数" min-width="80"><template #default="{ row }">{{ formatNumber(r(row).interactions) }}</template></el-table-column>
           <el-table-column label="互动率" min-width="80"><template #default="{ row }">{{ formatPercent(r(row).interactionRate) }}</template></el-table-column>
-          <el-table-column label="读完率" min-width="80"><template #default="{ row }">{{ formatPercent(r(row).completionRate) }}</template></el-table-column>
+          <el-table-column label="读完率" min-width="80"><template #header>读完率 <GuidanceButton id="metric.completion" label="读完率" /></template><template #default="{ row }">{{ formatPercent(r(row).completionRate) }}</template></el-table-column>
           <el-table-column label="新增关注" min-width="90"><template #default="{ row }">{{ formatNumber(r(row).newFollowers) }}</template></el-table-column>
         </el-table>
         <el-pagination v-model:current-page="page" class="pager" layout="total, prev, pager, next" :page-size="PAGE_SIZE" :total="data.total" />

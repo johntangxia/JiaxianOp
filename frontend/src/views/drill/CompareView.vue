@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchChannels, fetchPvRange, searchAccounts, searchEmployees } from "../../api/analytics";
@@ -16,6 +17,7 @@ import { accountLink, bloggerLink, channelLink, compareRows, rangeFromQuery } fr
 import { formatRate, rateClass } from "../../utils/format";
 import DrillBreadcrumb from "./DrillBreadcrumb.vue";
 
+const guideForMetric: Record<string, string> = { compositeDependency: "metric.compositeDependency", top1Share: "metric.concentration", ownEntryShare: "metric.ownShare", ownImpressions: "metric.entryExposure", ownCtr: "metric.entryCtr", ctr: "metric.contentCtr", completion: "metric.completion" };
 const MAX = 5;
 const route = useRoute();
 const router = useRouter();
@@ -169,7 +171,7 @@ function subjectLink(id: number) {
             </thead>
             <tbody>
               <tr v-for="row in rows" :key="row.key">
-                <td class="metric">{{ row.label }}</td>
+                <td class="metric">{{ row.label }} <GuidanceButton v-if="guideForMetric[row.key]" :id="guideForMetric[row.key]" :label="row.label" /></td>
                 <td v-for="(cell, i) in row.cells" :key="i" :class="{ best: cell.best }">
                   {{ cell.text }}
                   <span v-if="cell.previous !== null && cell.previous !== undefined" class="delta" :class="rateClass(changeRate(cell.current, cell.previous))">

@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchChannelDetail } from "../../api/channels";
 import { fetchChannelAccounts } from "../../api/drill";
-import type { BreakdownRow, Granularity, TopContent } from "../../api/types";
+import type { BreakdownRow, ChannelDetail, Granularity, TopContent } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
 import BaseChart from "../../components/BaseChart.vue";
 import { buildChannelTrendOption } from "../../charts/channelTrendOption";
@@ -33,7 +34,12 @@ const granularities: Array<{ value: Granularity; label: string }> = [
   { value: "MONTH", label: "月" },
 ];
 
-const detail = useAsync((id: number, f: string, t: string, g: Granularity) => fetchChannelDetail(id, f, t, g));
+const detailScopes = new WeakMap<ChannelDetail, { id: number; from: string; to: string }>();
+const detail = useAsync(async (id: number, f: string, t: string, g: Granularity) => {
+  const result = await fetchChannelDetail(id, f, t, g);
+  detailScopes.set(result, { id, from: f, to: t });
+  return result;
+});
 
 watch(
   [channelId, from, to, granularity],
@@ -60,6 +66,19 @@ const row = computed(() => detail.data.value?.row ?? null);
 const composite = computed(() => row.value?.category === "综合频道");
 const current = computed(() => row.value?.current ?? null);
 const previous = computed(() => row.value?.previous ?? null);
+function interactionExample() {
+  const data = detail.data.value;
+  const scope = data && detailScopes.get(data);
+  if (!data || detail.loading.value || detail.error.value || !scope || scope.id !== channelId.value || scope.from !== from.value || scope.to !== to.value || !data.row.current.content) return null;
+  return { subject: data.row.name, from: scope.from, to: scope.to, numerator: data.row.current.content.interactions, denominator: data.row.current.content.pv, numeratorLabel: "互动", denominatorLabel: "PV" };
+}
+function accountExample(id: number) {
+  const data = accounts.data.value;
+  if (!data || accounts.loading.value || accounts.error.value || data.channelId !== channelId.value || data.from !== from.value || data.to !== to.value) return null;
+  const account = data.accounts.find(item => item.id === id);
+  if (!account) return null;
+  return { subject: `${data.channelName} / ${account.name}`, from: data.from, to: data.to, numerator: account.current.exposure.clicks, denominator: account.current.exposure.impressions, numeratorLabel: "点击", denominatorLabel: "曝光" };
+}
 
 const trendOption = computed(() =>
   detail.data.value ? buildChannelTrendOption(detail.data.value.trend, detail.data.value.granularity, composite.value) : {},
@@ -95,7 +114,7 @@ function back(): void {
     <template v-else>
       <div class="panel head">
         <el-button size="small" @click="back">← 返回驾驶舱</el-button>
-        <h2 v-if="row" class="name">{{ row.name }}</h2>
+        <h2 v-if="row" class="name">{{ row.name }}</h2><GuidanceButton v-if="row && composite" id="page.channel-composite" label="综合频道详情" page />
         <el-tag v-if="row" :type="composite ? 'warning' : 'primary'" effect="plain">{{ row.category }}</el-tag>
         <span class="muted">{{ from }} ~ {{ to }}</span>
         <el-radio-group v-model="granularity" size="small" class="gran">
@@ -107,19 +126,19 @@ function back(): void {
         <div v-if="row && current && previous" class="page">
           <div class="kpis">
             <template v-if="composite">
-              <div class="panel kpi"><div class="label">曝光</div><div class="value">{{ formatNumber(current.distribution.impressions) }}<DeltaText :current="current.distribution.impressions" :previous="previous.distribution.impressions" /></div></div>
+              <div class="panel kpi"><div class="label">曝光 <GuidanceButton id="metric.entryExposure" label="入口曝光" /></div><div class="value">{{ formatNumber(current.distribution.impressions) }}<DeltaText :current="current.distribution.impressions" :previous="previous.distribution.impressions" /></div></div>
               <div class="panel kpi"><div class="label">点击</div><div class="value">{{ formatNumber(current.distribution.clicks) }}<DeltaText :current="current.distribution.clicks" :previous="previous.distribution.clicks" /></div></div>
-              <div class="panel kpi"><div class="label">点击率</div><div class="value">{{ formatPercent(current.distribution.ctr) }}</div></div>
+              <div class="panel kpi"><div class="label">点击率 <GuidanceButton id="metric.entryCtr" label="入口点击率" /></div><div class="value">{{ formatPercent(current.distribution.ctr) }}</div></div>
               <div class="panel kpi"><div class="label">触达 / 点击 UV</div><div class="value">{{ formatNumber(current.distribution.reachUv) }} / {{ formatNumber(current.distribution.clickUv) }}</div></div>
               <div class="panel kpi"><div class="label">覆盖领域</div><div class="value">{{ current.coverage?.domainsCovered ?? 0 }}</div></div>
             </template>
             <template v-else-if="current.content && current.supply && previous.content">
               <div class="panel kpi"><div class="label">PV</div><div class="value">{{ formatNumber(current.content.pv) }}<DeltaText :current="current.content.pv" :previous="previous.content.pv" /></div></div>
-              <div class="panel kpi own"><div class="label">自主分发占比</div><div class="value">{{ formatPercent(current.content.ownEntryShare) }}</div><div class="sub">上期 {{ formatPercent(previous.content.ownEntryShare) }}</div></div>
-              <div class="panel kpi own"><div class="label">自主入口 曝光 / 点击 / 点击率</div><div class="value small">{{ formatNumber(current.distribution.impressions) }} / {{ formatNumber(current.distribution.clicks) }} / {{ formatPercent(current.distribution.ctr) }}</div></div>
-              <div class="panel kpi"><div class="label">综合依赖度</div><div class="value">{{ formatPercent(current.content.compositeDependency) }}</div><div class="sub">上期 {{ formatPercent(previous.content.compositeDependency) }}</div></div>
+              <div class="panel kpi own"><div class="label">自主分发占比 <GuidanceButton id="metric.ownShare" label="自主分发占比" /></div><div class="value">{{ formatPercent(current.content.ownEntryShare) }}</div><div class="sub">上期 {{ formatPercent(previous.content.ownEntryShare) }}</div></div>
+              <div class="panel kpi own"><div class="label">自主入口 曝光 / 点击 / 点击率 <GuidanceButton id="metric.entryCtr" label="自主入口点击率" /></div><div class="value small">{{ formatNumber(current.distribution.impressions) }} / {{ formatNumber(current.distribution.clicks) }} / {{ formatPercent(current.distribution.ctr) }}</div></div>
+              <div class="panel kpi"><div class="label">综合依赖度 <GuidanceButton id="metric.compositeDependency" label="综合依赖度" /></div><div class="value">{{ formatPercent(current.content.compositeDependency) }}</div><div class="sub">上期 {{ formatPercent(previous.content.compositeDependency) }}</div></div>
               <div class="panel kpi"><div class="label">UV</div><div class="value">{{ formatNumber(current.content.uv) }}</div></div>
-              <div class="panel kpi"><div class="label">互动率</div><div class="value">{{ formatPercent(current.content.interactionRate) }}</div><div class="sub">互动 {{ formatNumber(current.content.interactions) }}</div></div>
+              <div class="panel kpi"><div class="label">互动率 <GuidanceButton id="metric.interaction" label="互动率" :context="{ example: interactionExample }" /></div><div class="value">{{ formatPercent(current.content.interactionRate) }}</div><div class="sub">互动 {{ formatNumber(current.content.interactions) }}</div></div>
               <div class="panel kpi"><div class="label">发帖 / 作者</div><div class="value">{{ current.supply.contents }} / {{ current.supply.authors }}</div></div>
               <div class="panel kpi"><div class="label">入口平均停留</div><div class="value">{{ formatSeconds(current.distribution.avgDwellSeconds) }}</div></div>
             </template>
@@ -151,7 +170,7 @@ function back(): void {
           <div v-if="!composite" class="panel">
             <h3 class="panel-title">该频道下的账号 <span class="muted">（指标只统计该频道里的内容；点一行进入账号）</span></h3>
             <AsyncBlock :loading="accounts.loading.value" :error="accounts.error.value" :empty="false">
-              <BreakdownTable v-if="accounts.data.value" :rows="accounts.data.value.accounts" name-label="账号" extra-label="类型" show-followers @open="openAccount" />
+              <BreakdownTable v-if="accounts.data.value" :rows="accounts.data.value.accounts" name-label="账号" extra-label="类型" :example-provider="accountExample" show-followers @open="openAccount" />
             </AsyncBlock>
           </div>
 

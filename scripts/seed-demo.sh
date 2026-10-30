@@ -32,7 +32,7 @@ call() {
   status=${out##*$'\n'}
   out=${out%$'\n'*}
   if [[ $status -ge 400 ]]; then
-    echo "失败（HTTP $status）$method $path：$out" >&2
+    echo "失败（HTTP ${status}）$method ${path}：$out" >&2
     exit 1
   fi
   printf '%s\n' "$out"
@@ -47,7 +47,7 @@ for _ in $(seq 1 60); do
 done
 curl -fs -m 3 "$API_URL/api/health" > /dev/null || { echo "后端在 $API_URL 上不可用" >&2; exit 1; }
 
-echo "1/4 历史回填（$HISTORY_START ~ $HISTORY_END，可能要一两分钟）..."
+echo "1/4 历史回填（$HISTORY_START ~ ${HISTORY_END}，可能要一两分钟）..."
 call POST /api/admin/simulator/backfill "{\"batchId\":\"demo\",\"employeeCount\":$EMPLOYEE_COUNT,\"accountCount\":$ACCOUNT_COUNT,\"teamAccountRatio\":0.25,\"contentCount\":$CONTENT_COUNT,\"historyStart\":\"$HISTORY_START\",\"historyEnd\":\"$HISTORY_END\",\"randomSeed\":$RANDOM_SEED,\"personas\":true}"
 
 echo "2/4 PV 汇总重算 ..."

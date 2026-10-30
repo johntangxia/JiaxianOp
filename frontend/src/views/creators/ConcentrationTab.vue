@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, watch } from "vue";
 import { fetchCreatorConcentration } from "../../api/people";
 import AsyncBlock from "../../components/AsyncBlock.vue";
@@ -23,7 +24,7 @@ const option = computed(() => (data.value ? buildConcentrationOption(data.value.
   <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.creators === 0" empty-text="所选区间内没有创作者">
     <div v-if="data" class="page">
       <div class="panel">
-        <h3 class="panel-title">头部创作者的贡献 <span class="muted">（{{ data.creators }} 名创作者，按 PV 从高到低；基尼系数 {{ giniLabel(data.gini) }}）</span></h3>
+        <h3 class="panel-title">头部创作者的贡献 <GuidanceButton id="metric.gini" label="基尼系数" /> <span class="muted">（{{ data.creators }} 名创作者，按 PV 从高到低；基尼系数 {{ giniLabel(data.gini) }}）</span></h3>
         <BaseChart :option="option" height="300px" />
         <p class="muted">基尼系数：0 = 所有创作者 PV 完全均匀，1 = 全部集中在一个人。头部占比过高说明产出依赖少数人，要警惕他们流失。</p>
       </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { fetchBloggers, fetchRuns, type BloggerQuery } from "../../api/kol";
@@ -74,7 +75,7 @@ function scoreClass(score: number): string {
     <AsyncBlock :loading="runs.loading.value" :error="runs.error.value" :empty="false">
       <div class="page">
         <div class="panel controls">
-          <span class="muted">统计日</span>
+          <GuidanceButton id="metric.kolAlert" label="KOL 流失预警" /><span class="muted">统计日</span>
           <el-select v-model="asOf" style="width: 150px" placeholder="选择统计日" @change="onFilterChange">
             <el-option v-for="date in runs.data.value ?? []" :key="date" :label="date" :value="date" />
           </el-select>
@@ -107,7 +108,7 @@ function scoreClass(score: number): string {
                     <el-tag v-if="row.churnAlert" type="danger" size="small" effect="dark" style="margin-left: 6px">预警</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="R / F / M" min-width="150">
+                <el-table-column label="R / F / M" min-width="150"><template #header>R / F / M <GuidanceButton id="metric.kolRfm" label="KOL 的 RFM" /></template>
                   <template #default="{ row }">
                     <span class="score-chip" :class="scoreClass(row.rScore)">{{ row.rScore }}</span>
                     <span class="score-chip" :class="scoreClass(row.fScore)">{{ row.fScore }}</span>

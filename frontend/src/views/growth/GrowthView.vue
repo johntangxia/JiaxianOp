@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { guidanceKey } from "../../guidance/context";
+import { inject, ref, watch } from "vue";
 import type { TaskDraft } from "../../utils/growth";
 import AlertsTab from "./AlertsTab.vue";
 import DepartmentsTab from "./DepartmentsTab.vue";
@@ -8,6 +9,8 @@ import TaskDialog from "./TaskDialog.vue";
 import TasksTab from "./TasksTab.vue";
 
 const tab = ref("alerts");
+const guidance = inject(guidanceKey);
+watch(tab, (value) => guidance?.setTab("growth", value), { immediate: true, flush: "sync" });
 const dialogVisible = ref(false);
 const draft = ref<TaskDraft | null>(null);
 // 创建任务后让"运营任务"标签页重新加载：用 key 重建组件

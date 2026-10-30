@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from "vue-router";
 export default createRouter({
   history: createWebHistory(),
   routes: [
+    { path: "/visit-flow", name: "visit-flow", component: () => import("../views/VisitFlowView.vue"), meta: { title: "访问流向" } },
     { path: "/", name: "overview", component: () => import("../views/OverviewView.vue"), meta: { title: "总览看板" } },
     {
       path: "/channels",

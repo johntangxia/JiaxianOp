@@ -2,28 +2,23 @@ package com.jiaxian.analytics.health;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.ResponseEntity;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@WebMvcTest(HealthController.class)
 class HealthControllerTest {
 
     @Autowired
-    private TestRestTemplate restTemplate;
-
-    @LocalServerPort
-    private int port;
+    private MockMvc mvc;
 
     @Test
-    void healthEndpointReturnsOk() {
-        ResponseEntity<String> response =
-            restTemplate.getForEntity("http://localhost:" + port + "/api/health", String.class);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody()).isEqualTo("OK");
+    void healthEndpointReturnsOk() throws Exception {
+        mvc.perform(get("/api/health"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("OK"));
     }
 }

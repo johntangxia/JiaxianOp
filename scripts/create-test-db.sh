@@ -6,20 +6,26 @@ set -euo pipefail
 
 DB_NAME="${TEST_DB_NAME:-jiaxian_test}"
 GS_USERNAME="${GS_USERNAME:-jiaxian_app}"
-GS_PASSWORD="${GS_PASSWORD:-Jiaxian@2026}"
+
+for identifier in "$DB_NAME" "$GS_USERNAME"; do
+  if [[ ! $identifier =~ ^[a-z_][a-z0-9_]*$ ]]; then
+    echo "数据库名和用户名必须是小写字母、数字和下划线组成的 SQL 标识符。" >&2
+    exit 1
+  fi
+done
 
 # gsql 库名 SQL
 gsql() {
-  docker exec -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss /usr/local/opengauss/bin/gsql \
-    -h 127.0.0.1 -U "$GS_USERNAME" -d "$1" -W "$GS_PASSWORD" -q -t -A -c "$2"
+  docker exec -u opengauss -e LD_LIBRARY_PATH=/usr/local/opengauss/lib jiaxian-opengauss \
+    /usr/local/opengauss/bin/gsql -v ON_ERROR_STOP=1 -d "$1" -q -t -A -c "$2"
 }
 
-exists=$(gsql postgres "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" || true)
+exists=$(gsql postgres "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'")
 if [[ $exists == 1 ]]; then
   echo "测试库 $DB_NAME 已存在。"
 else
-  gsql postgres "CREATE DATABASE $DB_NAME WITH ENCODING 'UTF8' DBCOMPATIBILITY 'A'" > /dev/null
-  echo "已创建测试库 $DB_NAME（表结构会在测试第一次启动时自动建好）。"
+  gsql postgres "CREATE DATABASE $DB_NAME OWNER $GS_USERNAME ENCODING 'UTF8' DBCOMPATIBILITY 'A'" > /dev/null
+  echo "已创建测试库 ${DB_NAME}（表结构会在测试第一次启动时自动建好）。"
 fi
 # 新库的 public 模式只有超级用户能建表（超级用户不能远程登录），所以在库里建一个和业务账号同名的模式：
 # 默认的 search_path 是 "$user", public，表会建在这个模式里

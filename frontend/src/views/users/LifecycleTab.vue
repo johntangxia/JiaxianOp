@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, watch } from "vue";
 import { fetchUserLifecycle } from "../../api/people";
 import type { UserLifecycleStageRow, UserTransitionRow } from "../../api/types";
@@ -52,7 +53,7 @@ function deltaClass(row: UserLifecycleStageRow): string {
       </div>
 
       <div class="panel">
-        <h3 class="panel-title">流转矩阵 <span class="muted">（行 = 30 天前所处的阶段，列 = 现在；格子 = 人数和占该行的比例，对角线是留在原阶段的人）</span></h3>
+        <h3 class="panel-title">流转矩阵 <GuidanceButton id="metric.transitions" label="流转矩阵" /> <span class="muted">（行 = 30 天前所处的阶段，列 = 现在；格子 = 人数和占该行的比例，对角线是留在原阶段的人）</span></h3>
         <div class="scroll">
           <table class="heat">
             <thead>

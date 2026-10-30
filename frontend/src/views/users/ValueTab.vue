@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, watch } from "vue";
 import { fetchUserValue } from "../../api/people";
 import type { UserValueSegmentRow } from "../../api/types";
@@ -26,7 +27,7 @@ function fixed(value: number | null): string {
 <template>
   <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.members === 0" empty-text="统计日还没有成员">
     <div v-if="data" class="panel">
-      <h3 class="panel-title">价值分层 <span class="muted">（{{ data.members }} 名成员；近 90 天 RFM，点一行看该层的用户）</span></h3>
+      <h3 class="panel-title">价值分层 <GuidanceButton id="metric.userRfm" label="用户价值分层 RFM" /> <span class="muted">（{{ data.members }} 名成员；近 90 天 RFM，点一行看该层的用户）</span></h3>
       <div class="split">
         <BaseChart :option="option" height="260px" />
         <el-table :data="data.segments" size="small" row-class-name="clickable-row" @row-click="(row: unknown) => emit('open-list', { value: r(row).segment })">

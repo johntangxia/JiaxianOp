@@ -50,6 +50,8 @@ declare module 'vue' {
     ElTimeline: typeof import('element-plus/es')['ElTimeline']
     ElTimelineItem: typeof import('element-plus/es')['ElTimelineItem']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
+    GuidanceButton: typeof import('./components/GuidanceButton.vue')['default']
+    GuidanceDrawer: typeof import('./components/GuidanceDrawer.vue')['default']
     HealthBadge: typeof import('./components/HealthBadge.vue')['default']
     RemoteSelect: typeof import('./components/RemoteSelect.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

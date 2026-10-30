@@ -15,7 +15,7 @@ status_of() { curl -s -m 20 -o /dev/null -w '%{http_code}' "$1"; }
 expect_status() { # 描述 URL 期望状态码
   local got
   got=$(status_of "$2")
-  if [[ $got == "$3" ]]; then ok "$1"; else bad "$1（期望 $3，实际 $got）"; fi
+  if [[ $got == "$3" ]]; then ok "$1"; else bad "$1（期望 $3，实际 ${got}）"; fi
 }
 
 # 描述 URL "python 布尔表达式"（变量 d 是解析后的 JSON）
@@ -43,7 +43,7 @@ expect_csv() {
 # URL "python 表达式" → 打印表达式的值，供后面拼 URL 用
 json_value() { curl -fs -m 30 "$1" | python3 -c "import json, sys; d = json.load(sys.stdin); print($2)"; }
 
-echo "前端与反向代理（$WEB_URL）"
+echo "前端与反向代理（${WEB_URL}）"
 expect_status "首页" "$WEB_URL/" 200
 expect_status "SPA 深层路径 /kol（回退到首页）" "$WEB_URL/kol" 200
 expect_status "SPA 深层路径 /kol/12" "$WEB_URL/kol/12" 200
@@ -66,7 +66,7 @@ echo "积分排行榜"
 expect_json "月榜周期列表" "$WEB_URL/api/leaderboard/month/periods" 'len(d) >= 2'
 PERIOD=$(json_value "$WEB_URL/api/leaderboard/month/periods" 'd[1]["periodValue"]') || PERIOD=""
 if [[ -n $PERIOD ]]; then
-  expect_json "已结束月份的榜单（$PERIOD）" "$WEB_URL/api/leaderboard/month?period=$PERIOD&limit=10" 'len(d["entries"]) > 0'
+  expect_json "已结束月份的榜单（${PERIOD}）" "$WEB_URL/api/leaderboard/month?period=$PERIOD&limit=10" 'len(d["entries"]) > 0'
 fi
 expect_status "榜单拒绝未来周期" "$WEB_URL/api/leaderboard/year?period=2999" 400
 
@@ -75,7 +75,7 @@ expect_json "重算记录" "$WEB_URL/api/bloggers/runs" 'len(d) > 0'
 expect_json "KOL 名单" "$WEB_URL/api/bloggers/top1000?limit=5" 'd["total"] > 0 and len(d["items"]) > 0'
 ID=$(json_value "$WEB_URL/api/bloggers/top1000?limit=1" 'd["items"][0]["employeeId"]') || ID=""
 if [[ -n $ID ]]; then
-  expect_json "博主详情（id=$ID）" "$WEB_URL/api/bloggers/$ID/profile" 'd["current"] is not None and len(d["history"]) > 0'
+  expect_json "博主详情（id=${ID}）" "$WEB_URL/api/bloggers/$ID/profile" 'd["current"] is not None and len(d["history"]) > 0'
   expect_json "博主活跃时间轴" "$WEB_URL/api/bloggers/$ID/activity?granularity=MONTH" 'len(d["points"]) > 0'
   expect_json "博主积分趋势" "$WEB_URL/api/bloggers/$ID/points-trend?granularity=MONTH" 'len(d["points"]) > 0'
 fi

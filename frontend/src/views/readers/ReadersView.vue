@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { guidanceKey } from "../../guidance/context";
+import { computed, inject, onMounted, ref, watch } from "vue";
 import { fetchReaderRange } from "../../api/readers";
 import type { PvRange } from "../../api/types";
 import AsyncBlock from "../../components/AsyncBlock.vue";
@@ -16,6 +17,8 @@ const noData = ref(false);
 const range = ref<DateRange | null>(null);
 const pvRange = ref<PvRange | null>(null);
 const tab = ref("activity");
+const guidance = inject(guidanceKey);
+watch(tab, (value) => guidance?.setTab("readers", value), { immediate: true, flush: "sync" });
 
 onMounted(async () => {
   try {

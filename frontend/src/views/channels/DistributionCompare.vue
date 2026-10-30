@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed } from "vue";
 import type { ChannelRow } from "../../api/types";
 import BaseChart from "../../components/BaseChart.vue";
@@ -31,9 +32,9 @@ const ownShare = computed(() => (mix.value.total === 0 ? null : mix.value.ownEnt
     <div class="panel group">
       <h3 class="panel-title">综合频道 · 入口分发</h3>
       <div class="nums">
-        <div><div class="label">曝光</div><div class="value">{{ formatNumber(compositeTotals.impressions) }}<DeltaText :current="compositeTotals.impressions" :previous="compositePrev.impressions" /></div></div>
+        <div><div class="label">曝光 <GuidanceButton id="metric.entryExposure" label="入口曝光" /></div><div class="value">{{ formatNumber(compositeTotals.impressions) }}<DeltaText :current="compositeTotals.impressions" :previous="compositePrev.impressions" /></div></div>
         <div><div class="label">点击</div><div class="value">{{ formatNumber(compositeTotals.clicks) }}<DeltaText :current="compositeTotals.clicks" :previous="compositePrev.clicks" /></div></div>
-        <div><div class="label">点击率</div><div class="value">{{ formatPercent(compositeTotals.ctr) }}</div></div>
+        <div><div class="label">点击率 <GuidanceButton id="metric.entryCtr" label="入口点击率" /></div><div class="value">{{ formatPercent(compositeTotals.ctr) }}</div></div>
       </div>
       <p class="muted">关注、推荐、热点、视频、直播五个入口合计</p>
     </div>
@@ -41,9 +42,9 @@ const ownShare = computed(() => (mix.value.total === 0 ? null : mix.value.ownEnt
     <div class="panel group own">
       <h3 class="panel-title">领域频道 · 自主入口分发</h3>
       <div class="nums">
-        <div><div class="label">曝光</div><div class="value">{{ formatNumber(ownTotals.impressions) }}<DeltaText :current="ownTotals.impressions" :previous="ownPrev.impressions" /></div></div>
+        <div><div class="label">曝光 <GuidanceButton id="metric.entryExposure" label="入口曝光" /></div><div class="value">{{ formatNumber(ownTotals.impressions) }}<DeltaText :current="ownTotals.impressions" :previous="ownPrev.impressions" /></div></div>
         <div><div class="label">点击</div><div class="value">{{ formatNumber(ownTotals.clicks) }}<DeltaText :current="ownTotals.clicks" :previous="ownPrev.clicks" /></div></div>
-        <div><div class="label">点击率</div><div class="value">{{ formatPercent(ownTotals.ctr) }}</div></div>
+        <div><div class="label">点击率 <GuidanceButton id="metric.entryCtr" label="入口点击率" /></div><div class="value">{{ formatPercent(ownTotals.ctr) }}</div></div>
       </div>
       <p class="muted">23 个领域频道在自己入口做的分发；占领域内容 PV 的 {{ formatPercent(ownShare) }}</p>
     </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GuidanceButton from "../../components/GuidanceButton.vue";
 import { computed, watch } from "vue";
 import { fetchCreatorLadder } from "../../api/people";
 import AsyncBlock from "../../components/AsyncBlock.vue";
@@ -23,7 +24,7 @@ const option = computed(() => (data.value ? buildLadderOption(data.value.stages)
   <AsyncBlock :loading="report.loading.value" :error="report.error.value" :empty="!!data && data.members === 0" empty-text="统计日还没有成员">
     <div v-if="data" class="page">
       <div class="panel">
-        <h3 class="panel-title">成长阶梯 <span class="muted">（截至 {{ data.asOf }}，{{ data.members }} 名成员，每人只算最高的一个阶段）</span></h3>
+        <h3 class="panel-title">成长阶梯 <GuidanceButton id="page.creators.ladder" label="成长阶梯" /> <span class="muted">（截至 {{ data.asOf }}，{{ data.members }} 名成员，每人只算最高的一个阶段）</span></h3>
         <BaseChart :option="option" height="280px" />
         <el-table :data="data.stages" size="small">
           <el-table-column label="阶段" prop="label" min-width="110" />
