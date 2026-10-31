@@ -9,6 +9,7 @@ import { useDrillRoute } from "../../composables/useDrillRoute";
 import { formatPercent } from "../../utils/channelMetrics";
 import { accountLink, bloggerLink, channelLink } from "../../utils/drill";
 import { formatNumber } from "../../utils/format";
+import { demoData } from "../../demo/data";
 import DrillBreadcrumb from "./DrillBreadcrumb.vue";
 import MetricCards from "./MetricCards.vue";
 import TrendAndMix from "./TrendAndMix.vue";
@@ -29,9 +30,12 @@ watch(
 );
 
 const data = computed(() => detail.data.value);
+const staticDemo = import.meta.env.VITE_STATIC_DEMO === "1";
+const linkRange = computed(() => staticDemo ? { from: demoData.cockpit.from, to: demoData.cockpit.to } : range.value);
+const shiftedLinkRange = computed(() => staticDemo && range.value && (range.value.from !== demoData.cockpit.from || range.value.to !== demoData.cockpit.to));
 const crumbs = computed(() => {
   const content = data.value?.content;
-  const r = range.value;
+  const r = linkRange.value;
   if (!content || !r) {
     return [{ label: "频道驾驶舱", to: { name: "channels" } }, { label: "内容" }];
   }
@@ -53,6 +57,7 @@ function formatTime(time: string): string {
     <el-alert v-if="!valid" title="链接缺少内容或日期范围，请从账号详情进入" type="warning" show-icon :closable="false" />
     <template v-else-if="range">
       <DrillBreadcrumb :items="crumbs" />
+      <el-alert v-if="shiftedLinkRange" title="频道、账号和作者详情使用 2026-05-01 至 2026-10-27 的演示快照；点击下钻链接会切换到该日期范围。" type="info" show-icon :closable="false" />
       <div v-if="data" class="panel head">
         <h2 class="name">内容 #{{ data.content.id }}</h2>
         <el-tag effect="plain">{{ data.content.type === "VIDEO" ? "视频" : "文章" }}</el-tag>
@@ -66,10 +71,10 @@ function formatTime(time: string): string {
       <AsyncBlock :loading="detail.loading.value" :error="detail.error.value" :empty="false">
         <div v-if="data" class="page">
           <div class="panel">
-            <span class="muted">频道：</span><a class="link" @click="router.push(channelLink(data.content.channelId, range))">{{ data.content.channelName }}</a>
-            <span class="muted">　账号：</span><a class="link" @click="router.push(accountLink(data.content.accountId, range))">{{ data.content.accountName }}</a>
+            <span class="muted">频道：</span><a class="link" @click="router.push(channelLink(data.content.channelId, linkRange!))">{{ data.content.channelName }}</a>
+            <span class="muted">　账号：</span><a class="link" @click="router.push(accountLink(data.content.accountId, linkRange!))">{{ data.content.accountName }}</a>
             <span class="muted">　作者：</span>
-            <a v-for="author in data.authors" :key="author.id" class="link author" @click="router.push(bloggerLink(author.id, range))">{{ author.name }}</a>
+            <a v-for="author in data.authors" :key="author.id" class="link author" @click="router.push(bloggerLink(author.id, linkRange!))">{{ author.name }}</a>
           </div>
           <MetricCards :current="data.current" :previous="data.previous" />
           <TrendAndMix :trend="data.trend" :granularity="data.granularity" :composition="data.composition" />

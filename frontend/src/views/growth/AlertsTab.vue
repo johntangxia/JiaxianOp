@@ -9,6 +9,7 @@ import { userLink } from "../../utils/people";
 import { ALERT_STATUS_LABELS, alertKindLabel, draftFromAlert, ENTITY_TYPE_LABELS, type TaskDraft } from "../../utils/growth";
 
 const emit = defineEmits<{ createTask: [draft: TaskDraft] }>();
+const staticDemo = import.meta.env.VITE_STATIC_DEMO === "1";
 
 const PAGE_SIZE = 20;
 const ALL = "ALL";   // el-radio 不能用空字符串当值，"全部"用哨兵值
@@ -37,7 +38,9 @@ async function rebuild(): Promise<void> {
   busy.value = true;
   try {
     const result = await rebuildAlerts();
-    ElMessage.success(`已重算（统计日 ${result.asOf}）：新增 ${result.created} 条，更新 ${result.updated} 条`);
+    ElMessage.success(staticDemo
+      ? `已恢复 ${result.asOf} 的模拟告警快照`
+      : `已重算（统计日 ${result.asOf}）：新增 ${result.created} 条，更新 ${result.updated} 条`);
     page.value = 1;
     load();
   } catch (e) {
@@ -66,9 +69,9 @@ async function setStatus(alert: GrowthAlert, next: GrowthAlertStatus): Promise<v
         <el-radio-button value="CLOSED">已关闭 {{ data?.counts.CLOSED ?? "" }}</el-radio-button>
         <el-radio-button :value="ALL">全部</el-radio-button>
       </el-radio-group>
-      <el-button type="primary" size="small" :loading="busy" @click="rebuild">重算告警</el-button>
+      <el-button type="primary" size="small" :loading="busy" @click="rebuild">{{ staticDemo ? "恢复演示告警" : "重算告警" }}</el-button>
     </div>
-    <p class="muted">告警来自频道诊断、DAU 下滑、新成员激活、部门渗透率和 KOL 流失预警；每天早上 7 点会自动重算一次；重算是幂等的，已有状态保留，已关闭的不会重开。</p>
+    <p class="muted">告警来自频道诊断、DAU 下滑、新成员激活、部门渗透率和 KOL 流失预警；<template v-if="staticDemo">本页展示固定模拟快照，确认与关闭只保存在当前浏览器。</template><template v-else>每天早上 7 点会自动重算一次；重算是幂等的，已有状态保留，已关闭的不会重开。</template></p>
     <AsyncBlock :loading="list.loading.value" :error="list.error.value" :empty="!!data && data.total === 0" empty-text="没有告警；点“重算告警”按当前数据检查一遍">
       <div v-if="data && data.total > 0">
         <el-table :data="data.alerts" size="small">

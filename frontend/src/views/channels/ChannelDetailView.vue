@@ -15,6 +15,7 @@ import { parseIsoDate } from "../../utils/dateRange";
 import { formatNumber } from "../../utils/format";
 import { accountLink, channelLink } from "../../utils/drill";
 import BreakdownTable from "../drill/BreakdownTable.vue";
+import { demoData } from "../../demo/data";
 import DeltaText from "./DeltaText.vue";
 
 const route = useRoute();
@@ -91,7 +92,10 @@ function formatTime(time: string): string {
 }
 
 function openAccount(account: BreakdownRow): void {
-  void router.push(accountLink(account.id, { from: from.value, to: to.value }));
+  const range = import.meta.env.VITE_STATIC_DEMO === "1" && accounts.data.value?.from !== from.value
+    ? { from: demoData.cockpit.from, to: demoData.cockpit.to }
+    : { from: from.value, to: to.value };
+  void router.push(accountLink(account.id, range));
 }
 
 // 综合频道的构成图：点一块进入对应的领域频道
@@ -169,6 +173,7 @@ function back(): void {
 
           <div v-if="!composite" class="panel">
             <h3 class="panel-title">该频道下的账号 <span class="muted">（指标只统计该频道里的内容；点一行进入账号）</span></h3>
+            <p v-if="accounts.data.value && accounts.data.value.from !== from" class="muted">公开演示的账号样本使用 {{ accounts.data.value.from }} ~ {{ accounts.data.value.to }} 固定窗口；点选后进入该窗口的账号详情。</p>
             <AsyncBlock :loading="accounts.loading.value" :error="accounts.error.value" :empty="false">
               <BreakdownTable v-if="accounts.data.value" :rows="accounts.data.value.accounts" name-label="账号" extra-label="类型" :example-provider="accountExample" show-followers @open="openAccount" />
             </AsyncBlock>

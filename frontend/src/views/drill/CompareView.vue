@@ -16,6 +16,7 @@ import { parseIsoDate, toIsoDate, type DateRange } from "../../utils/dateRange";
 import { accountLink, bloggerLink, channelLink, compareRows, rangeFromQuery } from "../../utils/drill";
 import { formatRate, rateClass } from "../../utils/format";
 import DrillBreadcrumb from "./DrillBreadcrumb.vue";
+import { defaultDemoCompareIds } from "../../demo/data";
 
 const guideForMetric: Record<string, string> = { compositeDependency: "metric.compositeDependency", top1Share: "metric.concentration", ownEntryShare: "metric.ownShare", ownImpressions: "metric.entryExposure", ownCtr: "metric.entryCtr", ctr: "metric.contentCtr", completion: "metric.completion" };
 const MAX = 5;
@@ -38,11 +39,14 @@ function initialType(): CompareType {
   return t === "ACCOUNT" || t === "BLOGGER" ? t : "CHANNEL";
 }
 function initialIds(): number[] {
-  return String(route.query.ids ?? "")
+  const parsed = String(route.query.ids ?? "")
     .split(",")
     .map(Number)
     .filter((n) => Number.isInteger(n) && n > 0)
     .slice(0, MAX);
+  return parsed.length === 0 && import.meta.env.VITE_STATIC_DEMO === "1" && initialType() === "CHANNEL" && route.query.ids === undefined
+    ? defaultDemoCompareIds()
+    : parsed;
 }
 
 const type = ref<CompareType>(initialType());

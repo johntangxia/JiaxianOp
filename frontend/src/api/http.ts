@@ -20,6 +20,10 @@ async function readMessage(response: Response): Promise<string> {
 }
 
 export async function getJson<T>(path: string, params?: QueryParams): Promise<T> {
+  if (import.meta.env.VITE_STATIC_DEMO === "1") {
+    const { demoGetJson } = await import("../demo/api");
+    return demoGetJson<T>(path, params);
+  }
   const response = await fetch(path + buildQuery(params));
   if (!response.ok) {
     throw new ApiError(response.status, await readMessage(response));
@@ -51,6 +55,10 @@ export async function sendJson<T>(
   path: string,
   options: SendOptions = {},
 ): Promise<T> {
+  if (import.meta.env.VITE_STATIC_DEMO === "1") {
+    const { demoSendJson } = await import("../demo/api");
+    return demoSendJson<T>(method, path, options);
+  }
   const init: RequestInit = { method };
   if (options.body !== undefined) {
     init.headers = { "Content-Type": "application/json" };

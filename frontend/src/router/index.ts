@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { demoRoutes } from "../demo/routes";
 
 export default createRouter({
   history: createWebHistory(),
-  routes: [
+  routes: import.meta.env.VITE_STATIC_DEMO === "1" ? demoRoutes : [
     { path: "/visit-flow", name: "visit-flow", component: () => import("../views/VisitFlowView.vue"), meta: { title: "访问流向" } },
     { path: "/", name: "overview", component: () => import("../views/OverviewView.vue"), meta: { title: "总览看板" } },
     {

@@ -68,6 +68,33 @@ scripts/demo-snapshot.sh restore    # 用快照覆盖当前数据库（会短暂
 scripts/demo-snapshot.sh list       # 列出快照；也可以 save/restore 指定名字
 ```
 
+## Cloudflare Pages 静态演示版
+
+本仓库另有**公开展示用的静态演示构建**，沿用现有 Vue 看板及指标说明，仅发布脱敏的模拟快照。部署后的浏览器不连接 Spring Boot、OpenGauss、Redis 或 Kafka，也不会调用 `/api` 网络接口。系统管理页不进入公开版路由，其余分析页、下钻、对比、榜单、用户 360 和增长闭环保留。告警状态及运营任务的创建、修改和删除只保存在当前浏览器的 `localStorage`，不支持多人协作；清除浏览器数据后会恢复初始样本。CSV 导出只包含公开的演示样本。
+
+快照目前截至 **2026-10-27**。频道、读者、创作者等看板使用固定的 **2026-05-01 至 2026-10-27** 窗口；总览按粒度使用预计算窗口。自定义日期若超出已发布窗口，页面会明确提示该组合不可用。总览的组合筛选使用公开样本的比例缩放作交互示意，不是按原始行为重新统计。用户、博主和账号名称已替换成演示编号；公开版不应被用于真实运营决策。
+
+在本机预览，无需启动任何后端服务：
+
+```bash
+cd frontend
+npm ci
+npm run build:demo
+npm run preview
+```
+
+Cloudflare Pages 的 Git 部署设置：**Root directory** 选 `frontend`，**Build command** 填 `npm run build:demo`，**Build output directory** 填 `dist`，Node.js 使用 20 或更新版本。`frontend/public/_redirects` 提供 SPA 深层路径回退，因此可直接打开 `/channels/6`、`/users/342` 等链接。无需配置数据库连接或 API 环境变量。Pages 部署只执行前端构建，不会更新快照。
+
+仅在本地模拟服务已有合适数据、并已检查可公开内容时，才显式更新快照：
+
+```bash
+python3 scripts/export-static-demo.py --base-url http://localhost:8081
+python3 scripts/export-static-api.py
+python3 scripts/complete-static-links.py
+```
+
+三个快照脚本只读取模拟分析接口，不调用回填、清空或恢复。更新后应复核 `frontend/src/demo/snapshot.json` 和 `frontend/src/demo/fixtures/` 的脱敏结果，再运行前端测试和 `npm run build:demo`。不要将内网版的 Nginx `/api` 代理或未鉴权的管理接口暴露在公网。
+
 ## 开发模式
 
 本机开发需要 Java 17、Maven、Node.js（CI 使用 20）和 Docker。macOS 使用 Homebrew 安装 `openjdk@17` 后，可以在当前终端选择项目使用的 Java 版本：
